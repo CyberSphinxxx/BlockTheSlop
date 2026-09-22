@@ -1,0 +1,3 @@
+/* Content script styles are namespaced; see src/presentation/style.ts for
+   the canonical source injected at runtime (id=bts-style). This file exists
+   so WXT bundles a stylesheet for the content script entrypoint. */
