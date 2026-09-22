@@ -48,6 +48,7 @@ node scripts/commit-individual-files.mjs --dry-run
 ```
 
 The script will:
+
 1. Examine each file's path, directory, and `git diff` content.
 2. Invert or infer the conventional commit type:
    - `feat(...)`: New features, components, services, or pages
@@ -67,6 +68,7 @@ The script will:
 ### Step 3: Present Completion Summary & Next Action
 
 Once all files are committed:
+
 1. Display the total number of commits created.
 2. Run `git log -n <count> --oneline` to show the newly minted commits.
 3. Inform the user that they can now push whenever they are ready by running:
