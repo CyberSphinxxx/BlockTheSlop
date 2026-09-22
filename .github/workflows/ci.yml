@@ -22,7 +22,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
-      - run: npm run test:e2e
+      - run: xvfb-run --auto-servernum npm run test:e2e
       - run: npm run build:firefox
       - run: npm run zip
       - run: npm run zip:firefox
