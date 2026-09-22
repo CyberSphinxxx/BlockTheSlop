@@ -1,0 +1,59 @@
+# Build & outputs
+dist
+.output
+.wxt
+coverage
+playwright-report
+test-results
+node_modules
+
+# Generated browser profiles (never commit)
+tests/e2e/.profiles
+*.profile
+
+# Local env / secrets
+.env
+.env.*
+
+# OS metadata
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE & editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build caches & temp files
+*.tsbuildinfo
+.eslintcache
+.turbo/
+
+# Archive files
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+# Agent kits, workspaces & archives
+archives/
+block-the-slop-upgrade-agent-kit/
+block-the-slop-next-loop-audit-kit/
+*-kit/
+.agents/
+.freebuff/
+.kilo/
