@@ -1,0 +1,11 @@
+/* Popup/options pages are extension-owned documents (never injected into
+   YouTube), so unscoped utilities are safe here. Presentation styles that DO
+   touch YouTube live in src/presentation/style.ts and use bts-* namespaces. */
+@import 'tailwindcss';
+
+/* v1 ships a fixed light UI; pin the color scheme so native controls
+   (select dropdowns, checkboxes, scrollbars) match it regardless of the
+   browser/OS theme instead of rendering dark controls on a light page. */
+:root {
+  color-scheme: light;
+}
