@@ -142,7 +142,21 @@ export async function writeSettings(
 ): Promise<void> {
   const ext = await page.context().newPage();
   await ext.goto(`chrome-extension://${extensionId}/popup.html`);
-  await ext.evaluate((value) => browser.storage.local.set({ 'local:settings': value }), settings);
+  await ext.evaluate(async (value) => {
+    await browser.storage.local.set({ 'local:settings': value });
+    const deadline = Date.now() + 5_000;
+    while (Date.now() < deadline) {
+      const current = (await browser.storage.local.get('local:settings'))['local:settings'];
+      const allKeysPersisted = Object.entries(value).every(
+        ([key, expected]) =>
+          JSON.stringify((current as Record<string, unknown> | undefined)?.[key]) ===
+          JSON.stringify(expected),
+      );
+      if (allKeysPersisted) return;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('Timed out waiting for settings to persist');
+  }, settings);
   await ext.close();
 }
 
