@@ -26,7 +26,9 @@ function inferCommitMessage(filePath) {
   const ext = path.extname(normalized);
 
   if (!existsSync(filePath)) {
-    const category = normalized.includes('/') ? normalized.split('/')[1] || normalized.split('/')[0] : 'root';
+    const category = normalized.includes('/')
+      ? normalized.split('/')[1] || normalized.split('/')[0]
+      : 'root';
     return `refactor(${category}): remove obsolete ${baseName}${ext}`;
   }
 
@@ -58,8 +60,7 @@ function inferCommitMessage(filePath) {
     return 'docs: document agent engineering contract and verification boundaries';
   if (normalized === 'TASKS.md')
     return 'docs: record comprehensive implementation task ledger and historical checklist';
-  if (normalized.startsWith('docs/'))
-    return `docs: add ${baseName} documentation`;
+  if (normalized.startsWith('docs/')) return `docs: add ${baseName} documentation`;
   if (normalized.startsWith('skills/')) {
     const skillName = normalized.split('/')[1];
     return `docs(skill): add ${skillName} skill instructions and workflow definition`;
