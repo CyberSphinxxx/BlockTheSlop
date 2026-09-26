@@ -4,12 +4,10 @@ import { SettingsStore } from '@/storage/settings-store';
 import { RuleStore } from '@/storage/rule-store';
 import { ReviewStore } from '@/storage/review-store';
 import { StatsStore } from '@/storage/stats-store';
-import { ClassificationCacheStore, cacheKeyFor, enforceRetention } from '@/storage/cache-store';
 import { runMigrations } from '@/storage/migrations';
 import { defaultSettings } from '@/domain/settings';
 import { defaultRules } from '@/domain/rules';
 import { defaultStats } from '@/domain/stats';
-import type { Classification } from '@/domain/classification';
 
 let kv: MemoryKVStore;
 
@@ -112,54 +110,10 @@ describe('StatsStore', () => {
   });
 });
 
-describe('ClassificationCacheStore', () => {
-  const classification = (ai: number): Classification => ({
-    aiLikelihood: ai,
-    slopLikelihood: 0.1,
-    categories: { 'ai-visual': ai },
-    confidence: 'high',
-    evidence: [],
-    classifierVersion: '1',
-    rulesVersion: '1',
-    evaluatedAt: Date.now(),
-  });
-
-  it('round-trips and respects versions', async () => {
-    const store = new ClassificationCacheStore(kv);
-    await store.put('vid', classification(0.9), '1');
-    expect((await store.get('vid', '1'))?.aiLikelihood).toBe(0.9);
-    expect(await store.get('vid', '999')).toBeUndefined();
-  });
-
-  it('enforces retention caps', async () => {
-    const now = Date.now();
-    const entries: Record<
-      string,
-      {
-        videoId: string;
-        classifierVersion: string;
-        rulesVersion: string;
-        classification: Classification;
-        cachedAt: number;
-      }
-    > = {};
-    for (let i = 0; i < 3000; i++) {
-      entries[`v1:c${i}`] = {
-        videoId: `c${i}`,
-        classifierVersion: '1',
-        rulesVersion: '1',
-        classification: classification(0.5),
-        cachedAt: now - i,
-      };
-    }
-    const kept = await enforceRetention(entries);
-    expect(Object.keys(kept).length).toBeLessThanOrEqual(2000);
-  });
-
-  it('uses stable cache keys', () => {
-    expect(cacheKeyFor('abc')).toBe('v1:abc');
-  });
-});
+// The legacy kv-backed ClassificationCacheStore was removed (N08): the only
+// production cache is the fingerprint-keyed IDB repository behind
+// StorageService, covered by tests/storage/idb.test.ts and
+// tests/unit/n08-cache.test.ts.
 
 describe('migrations', () => {
   it('is idempotent', async () => {
