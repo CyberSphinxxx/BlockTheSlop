@@ -8,12 +8,18 @@ export function Toggle({
   checked,
   onChange,
   description,
+  disabled = false,
+  disabledReason,
 }: {
   id: string;
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   description?: string;
+  /** N04 settings truth: a control with no runtime effect must be disabled, not fake-enabled. */
+  disabled?: boolean;
+  /** Shown when disabled so the inactive state is explained, not mysterious. */
+  disabledReason?: string;
 }) {
   return (
     <div className="flex items-start gap-3 py-1.5">
@@ -21,11 +27,17 @@ export function Toggle({
         id={id}
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         onChange={(event) => onChange(event.currentTarget.checked)}
-        className="mt-0.5 size-4 shrink-0 accent-slate-700"
+        className="bts-checkbox mt-0.5 size-4 shrink-0"
       />
       <label htmlFor={id} className="text-sm leading-snug">
         <span className="font-medium">{label}</span>
+        {disabled && disabledReason !== undefined && (
+          <span role="status" className="block text-xs opacity-70">
+            {disabledReason}
+          </span>
+        )}
         {description !== undefined && (
           <span className="block text-xs opacity-70">{description}</span>
         )}
@@ -53,13 +65,13 @@ export function SegmentedControl<T extends string>({
       <legend className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-70">
         {legend}
       </legend>
-      <div className="flex gap-1 rounded-md bg-black/5 p-1">
+      <div className="flex gap-1 rounded-md bg-black/5 p-1 dark:bg-white/10">
         {options.map((option) => (
           <label
             key={option.value}
             className={`flex-1 cursor-pointer rounded px-2 py-1 text-center text-sm ${
               value === option.value
-                ? 'bg-white font-semibold shadow'
+                ? 'bts-segmented-selected font-semibold shadow'
                 : 'opacity-70 hover:opacity-100'
             }`}
           >
@@ -93,16 +105,16 @@ export function Button({
 }) {
   const styles =
     variant === 'primary'
-      ? 'bg-slate-800 text-white hover:bg-slate-700'
+      ? 'bts-btn-primary'
       : variant === 'danger'
-        ? 'bg-red-700 text-white hover:bg-red-600'
-        : 'bg-black/5 hover:bg-black/10';
+        ? 'bts-btn-danger'
+        : 'bts-btn-secondary';
   return (
     <button
       type={type}
       onClick={onClick}
       {...rest}
-      className={`rounded-md px-3 py-1.5 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-800 ${styles}`}
+      className={`bts-btn rounded-md px-3 py-1.5 text-sm font-medium ${styles}`}
     >
       {children}
     </button>
@@ -111,7 +123,7 @@ export function Button({
 
 export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="border-t border-black/10 py-3 first:border-t-0">
+    <section className="border-t border-black/10 py-3 first:border-t-0 dark:border-white/15">
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide opacity-70">{title}</h2>
       {children}
     </section>
@@ -184,7 +196,7 @@ export function ConfirmDialog({
       role="alertdialog"
       aria-modal="true"
       aria-label={label}
-      className="rounded bg-black/5 p-3"
+      className="rounded bg-black/5 p-3 dark:bg-white/10"
     >
       {children}
       <div className="mt-2 flex gap-2">
