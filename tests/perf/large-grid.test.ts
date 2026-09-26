@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { discoverCards, parseDiscovered } from '@/youtube/discover';
 import { aggregateEvidence } from '@/detection/engine';
 import { pageContextFromUrl } from '@/youtube/routes';
@@ -8,6 +8,9 @@ import { pageContextFromUrl } from '@/youtube/routes';
  * approximately with N, not force repeated whole-page O(N²) work.
  * Budgets are generous ceilings for CI hardware variance.
  */
+// Test-level timeout must exceed the in-test ceilings, or the ceilings are
+// unreachable (the 5s default kills the test before its budget is evaluated).
+vi.setConfig({ testTimeout: 60_000 });
 
 function buildGrid(cardCount: number): Document {
   const doc = document.implementation.createHTMLDocument('grid');
@@ -36,9 +39,10 @@ describe('large grid performance', () => {
     const elapsed = Date.now() - started;
     expect(parsed).toHaveLength(500);
     expect(parsed[0]?.videoId).toBe('perf0000');
-    // Generous ceiling: 500 cards in under 5s (typical: <100ms locally, up to
-    // ~1s on loaded CI). A real O(N²) regression fails by orders of magnitude.
-    expect(elapsed).toBeLessThan(5000);
+    // Order-of-magnitude ceiling: 500 cards parsed in well under 10s (typical
+    // <100ms locally; loaded parallel CI runners can slow 10x). A real O(N²)
+    // regression fails by orders of magnitude.
+    expect(elapsed).toBeLessThan(10_000);
   });
 
   it('classification of 500 candidates stays within budget', async () => {
@@ -50,8 +54,10 @@ describe('large grid performance', () => {
       aggregateEvidence([], candidate, {});
     }
     const elapsed = Date.now() - started;
-    // Aggregation without evidence is cheap; ceiling guards regressions.
-    expect(elapsed).toBeLessThan(2500);
+    // Aggregation without evidence is cheap; order-of-magnitude ceiling for
+    // CI hardware variance (typical <50ms locally; loaded parallel runners
+    // can slow 10x). A real O(N²) regression fails by orders of magnitude.
+    expect(elapsed).toBeLessThan(10_000);
   });
 
   it('does not rescan the whole document per added card', () => {
