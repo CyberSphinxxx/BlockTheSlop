@@ -2,6 +2,7 @@ import type { Surface } from '@/domain/video';
 import { queryAll, SELECTORS } from './selectors';
 import { parseCardElement } from './parse/card';
 import { parseShortsShelfCard, parseShortsFeedItem } from './parse/shorts';
+import { looksLikeShorts } from './parse/common';
 
 export interface DiscoveredCard {
   element: Element;
@@ -20,6 +21,9 @@ const SHORTS_SELECTORS: readonly string[] = [
   'ytm-shorts-lockup-view-model',
   'ytd-reel-item-renderer',
 ];
+
+/** V7-02: a wrapper containing ANY of these is a container, not a card. */
+const CARD_OR_SHORTS_SELECTOR = [...CARD_SELECTORS, ...SHORTS_SELECTORS].join(',');
 
 function matchesAny(el: Element, selectors: readonly string[]): boolean {
   return selectors.some((selector) => {
@@ -50,8 +54,13 @@ export function discoverCards(root: ParentNode, _surface: Surface): DiscoveredCa
       return;
     }
     if (matchesAny(el, CARD_SELECTORS)) {
-      // Skip containers whose children are the real cards.
-      if (el.querySelector(CARD_SELECTORS.join(',')) === null) {
+      // Skip containers whose children are the real cards. V7-02: Shorts
+      // lockups count as real cards here — a whole-shelf rich-item wrapper
+      // contains many ytm-shorts-lockup-view-model elements and must never be
+      // discovered as ONE card (it inherited the first /shorts/ link's id
+      // with an empty title, breaking durable records, poisoning the batched
+      // classification round-trip, and risking a whole-shelf collapse).
+      if (el.querySelector(CARD_OR_SHORTS_SELECTOR) === null) {
         out.push({ element: el, kind: 'card' });
       }
     }
@@ -88,6 +97,11 @@ export function parseDiscovered(card: DiscoveredCard, surface: Surface, now: num
   return card.kind === 'shorts-card'
     ? parseShortsShelfCard(card.element, surface, now)
     : parseCardElement(card.element, surface, now);
+}
+
+/** N02: classify an element without a full discovery pass. */
+export function cardKindOf(element: Element): 'card' | 'shorts-card' {
+  return looksLikeShorts(element) ? 'shorts-card' : 'card';
 }
 
 /**
