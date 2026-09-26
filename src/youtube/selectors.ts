@@ -11,6 +11,10 @@ export const BTS_PREFIX = 'bts';
 export const ATTR_STATE = 'data-bts-state';
 export const ATTR_VIDEO_ID = 'data-bts-video-id';
 export const ATTR_SURFACE = 'data-bts-surface';
+/** N02: evidence-content fingerprint recorded when a decision was applied.
+ * Recycled cards change their parsed identity; a stale stamp tells consumers
+ * (show-once set, click handlers) that the stored decision is not theirs. */
+export const ATTR_FINGERPRINT = 'data-bts-fingerprint';
 
 export const SELECTORS = {
   /** Video link that identifies a card's primary target (works for watch, shorts). */
