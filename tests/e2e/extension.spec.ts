@@ -26,7 +26,8 @@ test.describe('extension lifecycle', () => {
     const popup = await harness.context.newPage();
     await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
     await expect(popup.getByRole('heading', { name: 'BlockTheSlop' })).toBeVisible();
-    await expect(popup.getByRole('checkbox', { name: 'On' })).toBeChecked();
+    // V6-09: the enable control is an explicit On/Off segmented choice.
+    await expect(popup.getByRole('radio', { name: 'On', exact: true })).toBeChecked();
 
     const options = await harness.context.newPage();
     await options.goto(`chrome-extension://${harness.extensionId}/options.html`);
@@ -70,9 +71,9 @@ test.describe('filtering on fixture pages', () => {
     await harness.page.goto(`${BASE}/`);
     await waitForCardState(harness.page, 'card-disclosure', 'hidden');
     await waitForCardState(harness.page, 'card-human', null);
-    await expect(
-      harness.page.locator('[data-testid="card-disclosure"] .bts-placeholder'),
-    ).toContainText('Hidden by BlockTheSlop');
+    const hiddenCard = harness.page.locator('[data-testid="card-disclosure"]');
+    await expect(hiddenCard.locator('.bts-placeholder')).toHaveCount(0);
+    await expect(hiddenCard).toBeHidden();
   });
 
   test('E2E-04 AI discussion video is not automatically hidden', async () => {
@@ -153,10 +154,8 @@ test.describe('filtering on fixture pages', () => {
     });
 
     await waitForCardState(harness.page, 'card-spa-disclosure', 'hidden');
-    const placeholders = await harness.page
-      .locator('[data-testid="card-disclosure"] .bts-placeholder')
-      .count();
-    expect(placeholders).toBe(1);
+    await expect(harness.page.locator('[data-testid="card-disclosure"]')).toBeHidden();
+    await expect(harness.page.locator('[data-testid="card-spa-disclosure"]')).toBeHidden();
   });
 
   test('E2E-09 many inserted cards process in bounded batches', async () => {
@@ -325,5 +324,92 @@ test.describe('filtering on fixture pages', () => {
     });
     // The placeholder is still visible, now with the compact geometry class.
     await expect(card.locator('.bts-placeholder')).toBeVisible();
+  });
+});
+
+test.describe('N15 theme visibility', () => {
+  test('E2E-17 theme applies immediately on options and YouTube surfaces', async () => {
+    // --- Options page: real UI interaction flips the palette. ---
+    const options = await harness.context.newPage();
+    await options.goto(`chrome-extension://${harness.extensionId}/options.html`);
+    await expect(options.getByRole('button', { name: 'General' })).toBeVisible();
+    const body = options.locator('body');
+    const lightBg = await body.evaluate((el) => getComputedStyle(el).backgroundColor);
+
+    await options.getByLabel('Color scheme').selectOption('dark');
+    await expect(options.locator('html[data-bts-theme="dark"]')).toHaveCount(1);
+    await expect
+      .poll(async () => body.evaluate((el) => getComputedStyle(el).backgroundColor))
+      .not.toBe(lightBg);
+    const darkBg = await body.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(darkBg).not.toBe(lightBg);
+    await options.close();
+
+    // --- YouTube side: explicitly select placeholder mode to verify its theme. ---
+    await writeSettings(harness.page, harness.extensionId, {
+      ...(await readSettings(harness.page, harness.extensionId)),
+      displayMode: 'placeholder',
+    });
+    await harness.page.goto(`${BASE}/`);
+    const card = harness.page.locator('[data-testid="card-disclosure"]');
+    await waitForCardState(harness.page, 'card-disclosure', 'hidden');
+    await expect(harness.page.locator('html[data-bts-theme="dark"]')).toHaveCount(1, {
+      timeout: 10_000,
+    });
+    const placeholderBg = await card
+      .locator('.bts-placeholder')
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(placeholderBg).not.toBe(lightBg);
+    expect(placeholderBg).toBeTruthy(); // --- Popup: opens fresh, so it must load already-dark. ---
+    const popup = await harness.context.newPage();
+    await popup.goto(`chrome-extension://${harness.extensionId}/popup.html`);
+    await expect(popup.locator('html[data-bts-theme="dark"]')).toHaveCount(1);
+    await expect
+      .poll(async () =>
+        popup.locator('body').evaluate((el) => getComputedStyle(el).backgroundColor),
+      )
+      .not.toBe(lightBg);
+    await popup.close();
+  });
+
+  // N04 blocker-4: displayMode changes must apply to ALREADY-hidden cards on
+  // an open tab — placeholder → collapse swaps the owned UI live.
+  test('E2E-18 displayMode placeholder→collapse applies live on an open tab', async () => {
+    await writeSettings(harness.page, harness.extensionId, {
+      enabled: true,
+      mode: 'balanced',
+      displayMode: 'placeholder',
+      showExplanations: true,
+      collectLocalStats: false,
+      history: { enabled: true, retentionDays: 30 },
+    });
+    await harness.page.goto(`${BASE}/`);
+    const card = harness.page.locator('[data-testid="card-disclosure"]');
+    await waitForCardState(harness.page, 'card-disclosure', 'hidden');
+    await expect(card.locator('.bts-placeholder')).toBeVisible();
+
+    // Flip to collapse WITHOUT reloading: the placeholder must disappear.
+    await writeSettings(harness.page, harness.extensionId, {
+      enabled: true,
+      mode: 'balanced',
+      displayMode: 'collapse',
+      showExplanations: true,
+      collectLocalStats: false,
+      history: { enabled: true, retentionDays: 30 },
+    });
+    await expect(card.locator('.bts-placeholder')).toHaveCount(0, { timeout: 15_000 });
+    // After the rescan the collapse attribute is present (slot removed).
+    await expect(card).toHaveAttribute('data-bts-collapse', '', { timeout: 15_000 });
+
+    // And back: collapse → placeholder restores the visible bar live.
+    await writeSettings(harness.page, harness.extensionId, {
+      enabled: true,
+      mode: 'balanced',
+      displayMode: 'placeholder',
+      showExplanations: true,
+      collectLocalStats: false,
+      history: { enabled: true, retentionDays: 30 },
+    });
+    await expect(card.locator('.bts-placeholder')).toBeVisible({ timeout: 15_000 });
   });
 });
