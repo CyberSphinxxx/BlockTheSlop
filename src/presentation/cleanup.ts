@@ -5,6 +5,7 @@ export function cleanupAll(root: ParentNode = document): void {
   for (const el of root.querySelectorAll(`[${ATTR_STATE}]`)) {
     restoreRecursively(el);
   }
+  root.querySelectorAll('.bts-manual-action, .bts-activity-notice').forEach((el) => el.remove());
 }
 
 /** Restore one card subtree: markers, owned UI, inline styles. Idempotent. */
@@ -15,7 +16,9 @@ export function restoreRecursively(element: Element): void {
   // Nested removal (audit A03): warn overlays live under the thumbnail
   // anchor, placeholders under the card — clean every owned descendant.
   element
-    .querySelectorAll('.bts-overlay, .bts-placeholder, .bts-status')
+    .querySelectorAll(
+      '.bts-overlay, .bts-placeholder, .bts-warn-marker, .bts-status, .bts-manual-action',
+    )
     .forEach((n) => n.remove());
   element.classList.remove('bts-show-placeholder');
   // Restore inline styles we set on warn anchors.
