@@ -177,14 +177,28 @@ export async function writeSettings(
   const ext = await page.context().newPage();
   await ext.goto(`chrome-extension://${extensionId}/popup.html`);
   await ext.evaluate(async (value) => {
+    function deepEqual(a: unknown, b: unknown): boolean {
+      if (a === b) return true;
+      if (a === null || typeof a !== 'object' || b === null || typeof b !== 'object') {
+        return false;
+      }
+      const keysA = Object.keys(a as Record<string, unknown>);
+      const keysB = Object.keys(b as Record<string, unknown>);
+      if (keysA.length !== keysB.length) return false;
+      for (const k of keysA) {
+        if (!deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k])) {
+          return false;
+        }
+      }
+      return true;
+    }
+
     await browser.storage.local.set({ 'local:settings': value });
     const deadline = Date.now() + 5_000;
     while (Date.now() < deadline) {
       const current = (await browser.storage.local.get('local:settings'))['local:settings'];
-      const allKeysPersisted = Object.entries(value).every(
-        ([key, expected]) =>
-          JSON.stringify((current as Record<string, unknown> | undefined)?.[key]) ===
-          JSON.stringify(expected),
+      const allKeysPersisted = Object.entries(value).every(([key, expected]) =>
+        deepEqual((current as Record<string, unknown> | undefined)?.[key], expected),
       );
       if (allKeysPersisted) return;
       await new Promise((resolve) => setTimeout(resolve, 50));
