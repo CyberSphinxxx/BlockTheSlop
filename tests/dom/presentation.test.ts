@@ -39,7 +39,11 @@ const candidate: NormalizedVideoCandidate = {
 };
 
 let card: Element;
-const settings = { ...defaultSettings(), showExplanations: true };
+const settings = {
+  ...defaultSettings(),
+  displayMode: 'placeholder' as const,
+  showExplanations: true,
+};
 
 beforeEach(() => {
   card = elementFromHtml(HUMAN_CARD_HTML);
@@ -59,10 +63,10 @@ describe('applyDecision', () => {
     expect(card.getAttribute('data-bts-state')).toBe('hidden');
   });
 
-  it('warns idempotently without duplicating overlays', () => {
+  it('warns idempotently without duplicating markers (N16: in-flow, not overlaying)', () => {
     applyDecision(card, decision('warn'), candidate, settings);
     applyDecision(card, decision('warn'), candidate, settings);
-    expect(card.querySelectorAll('.bts-overlay')).toHaveLength(1);
+    expect(card.querySelectorAll('.bts-warn-marker')).toHaveLength(1);
     expect(card.getAttribute('data-bts-state')).toBe('warn');
   });
 
@@ -70,19 +74,19 @@ describe('applyDecision', () => {
     applyDecision(card, decision('hide'), candidate, settings);
     applyDecision(card, decision('warn'), candidate, settings);
     expect(card.querySelectorAll('.bts-placeholder')).toHaveLength(0);
-    expect(card.querySelectorAll('.bts-overlay')).toHaveLength(1);
+    expect(card.querySelectorAll('.bts-warn-marker')).toHaveLength(1);
     expect(card.getAttribute('data-bts-state')).toBe('warn');
 
     applyDecision(card, decision('allow'), candidate, settings);
     expect(card.getAttribute('data-bts-state')).toBeNull();
-    expect(card.querySelectorAll('.bts-overlay')).toHaveLength(0);
+    expect(card.querySelectorAll('.bts-warn-marker')).toHaveLength(0);
   });
 
   it('restore removes all extension state', () => {
     applyDecision(card, decision('warn'), candidate, settings);
     restore(card);
     expect(card.getAttribute('data-bts-state')).toBeNull();
-    expect(card.querySelectorAll('.bts-overlay')).toHaveLength(0);
+    expect(card.querySelectorAll('.bts-warn-marker')).toHaveLength(0);
   });
 
   it('collapse display mode removes the layout slot (no placeholder)', () => {
