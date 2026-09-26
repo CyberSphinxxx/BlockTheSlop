@@ -27,6 +27,9 @@ function fakeBackend(overrides: Partial<Backend> = {}): Backend {
     getRules: vi.fn(async () => defaultRules()),
     getReview: vi.fn(async () => [hiddenRecord]),
     getReviewSummaries: vi.fn(async () => []),
+    listMissReview: vi.fn(async () => []),
+    clearMissReview: vi.fn(async () => true),
+    exportMissReview: vi.fn(async () => []),
     queryHistory: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 25 })),
     getHistoryEvents: vi.fn(async () => []),
     deleteSummaries: vi.fn(async () => ({ deleted: [], missing: [] })),
@@ -40,6 +43,10 @@ function fakeBackend(overrides: Partial<Backend> = {}): Backend {
     clearCache: vi.fn(async () => {}),
     clearCorrections: vi.fn(async () => {}),
     resetStats: vi.fn(async () => {}),
+    getDailyStats: async () => ({ version: 1, days: {}, currentDay: '2026-09-25' }),
+    resetDailyStats: async () => true,
+    getOnboardingState: async () => ({ completed: true, version: 1 }),
+    completeOnboarding: async () => true,
     ...overrides,
   };
 }
