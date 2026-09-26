@@ -3,20 +3,53 @@ import { queryFirst, textList, textOf } from '../selectors';
 import { channelIdentityFromHref, videoIdFromUrl } from '../routes';
 
 /**
- * YouTube's official altered/synthetic content disclosure labels (en + common
- * variants). First-party disclosure is strong evidence for the AI dimension.
- * Matching is case-insensitive phrase containment on badge text only.
+ * YouTube's official altered/synthetic content disclosure labels. V7-08:
+ * YouTube renders the label in the viewer's UI language, so the documented
+ * per-locale variants are matched (diacritics/case-insensitively) — a Spanish
+ * or Japanese viewer must get the same first-party evidence as an English
+ * one. Matching stays scoped to badge text and the lockup's own aria-label
+ * (never the title, description, or sibling cards), and absence of the label
+ * is never evidence of anything.
  */
 const DISCLOSURE_PHRASES: readonly string[] = [
   'altered or synthetic content',
   'altered/synthetic content',
   'synthetic content',
   'altered content',
+  // es
+  'contenido alterado o sintético',
+  'contenido sintético',
+  // fr
+  'contenu modifié ou synthétique',
+  'contenu synthétique',
+  // de
+  'verändertes oder synthetisches material',
+  'synthetisches material',
+  // ja
+  '変更または合成コンテンツ',
+  '合成コンテンツ',
+  // pt
+  'conteúdo alterado ou sintético',
+  // it
+  'contenuto alterato o sintetico',
 ];
+
+/** Case/diacritics-insensitive containment (NFD strips combining marks). */
+function containsDisclosurePhrase(text: string): string | undefined {
+  const normalized = text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+  for (const phrase of DISCLOSURE_PHRASES) {
+    const target = phrase.normalize('NFD').replace(/\p{M}/gu, '');
+    if (normalized.includes(target)) return phrase;
+  }
+  return undefined;
+}
 
 /**
  * Some legacy badges are unrelated (e.g. "CC"); only treat matched phrases as
  * disclosure. Returns undefined when no badge matches a disclosure phrase.
+ * V7-08: falls back to the container's own aria-label when no badge element
+ * carries the label (aria-label is the accessible name YouTube puts on the
+ * disclosure anchor in lockup-based layouts).
  */
 export function extractOfficialDisclosure(
   root: ParentNode,
@@ -24,11 +57,18 @@ export function extractOfficialDisclosure(
 ): OfficialDisclosure | undefined {
   const badges = textList(root, badgeSelectors, 12);
   for (const badge of badges) {
-    const lower = badge.toLowerCase();
-    for (const phrase of DISCLOSURE_PHRASES) {
-      if (lower.includes(phrase)) {
-        return { present: true, text: badge };
-      }
+    const matched = containsDisclosurePhrase(badge);
+    if (matched !== undefined) {
+      return { present: true, text: badge };
+    }
+  }
+  // Aria-label fallback: the lockup's own accessible name (bounded list).
+  for (const node of root.querySelectorAll('[aria-label]')) {
+    const label = node.getAttribute('aria-label');
+    if (!label) continue;
+    const matched = containsDisclosurePhrase(label);
+    if (matched !== undefined) {
+      return { present: true, text: label.trim().slice(0, 200) };
     }
   }
   return undefined;
