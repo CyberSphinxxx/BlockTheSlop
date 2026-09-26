@@ -16,9 +16,15 @@ export default defineConfig({
     description:
       'Privacy-first, local-first filtering of AI-generated, automated, repetitive, and low-quality YouTube content. No account, no telemetry, no cloud.',
     version: '1.0.0',
+    // Firefox (N05): a stable add-on id is required for permanent sideload
+    // installs in a profile; without it the build cannot be verified in a
+    // real Firefox runtime.
+    browser_specific_settings: {
+      gecko: { id: 'blocktheslop@local', strict_min_version: '115.0' },
+    },
     // v1 filters only; no scripting injection, no host access beyond YouTube,
     // no alarms (no scheduled remote refresh in v1), no unlimitedStorage.
-    permissions: ['storage'],
+    permissions: ['storage', 'contextMenus'],
     host_permissions: ['*://*.youtube.com/*'],
     web_accessible_resources: [
       {
