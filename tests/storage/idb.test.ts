@@ -487,7 +487,9 @@ describe('Legacy migration (R13)', () => {
 });
 
 describe('StorageService facade', () => {
-  it('degrades to no-ops when IndexedDB is unavailable (fail open)', async () => {
+  // N01: READ paths still degrade to no-ops when IndexedDB is unavailable —
+  // only the DURABLE WRITE path (recordHidden) must surface the outage.
+  it('degrades reads to no-ops when IndexedDB is unavailable (fail open)', async () => {
     const original = globalThis.indexedDB;
     Object.defineProperty(globalThis, 'indexedDB', {
       value: undefined,
@@ -496,15 +498,6 @@ describe('StorageService facade', () => {
     });
     try {
       const service = new StorageService();
-      await service.recordHidden({
-        videoId: 'v',
-        title: 't',
-        surface: 'home',
-        decision,
-        occurredAt: 1,
-        operationId: 'x',
-        sessionKey: 's',
-      });
       expect(await service.listRecentSummaries(5)).toEqual([]);
       expect(await service.countSummaries()).toBe(0);
       expect(await service.getCorrectionSignals('v')).toEqual({ notAi: false, notSlop: false });
@@ -518,6 +511,78 @@ describe('StorageService facade', () => {
         writable: true,
       });
     }
+  });
+
+  // N01: the durable hide write must THROW when IndexedDB is unavailable —
+  // a silent return here is exactly the defect that hides cards without a
+  // recovery record (the orchestrator fails open only when it SEES the error).
+  it('recordHidden THROWS when IndexedDB is unavailable (N01)', async () => {
+    const original = globalThis.indexedDB;
+    Object.defineProperty(globalThis, 'indexedDB', {
+      value: undefined,
+      configurable: true,
+      writable: true,
+    });
+    try {
+      const service = new StorageService();
+      await expect(
+        service.recordHidden({
+          videoId: 'v',
+          title: 't',
+          surface: 'home',
+          decision,
+          occurredAt: 1,
+          operationId: 'n01-x',
+          sessionKey: 's',
+        }),
+      ).rejects.toThrow(/IndexedDB unavailable/);
+    } finally {
+      Object.defineProperty(globalThis, 'indexedDB', {
+        value: original,
+        configurable: true,
+        writable: true,
+      });
+    }
+  });
+
+  // N01: after an outage the service must RETRY on the next write — an early
+  // outage must not permanently brick history for the session.
+  it('recordHidden recovers when IndexedDB returns after an outage (N01 retry)', async () => {
+    const original = globalThis.indexedDB;
+    const service = new StorageService();
+    Object.defineProperty(globalThis, 'indexedDB', {
+      value: undefined,
+      configurable: true,
+      writable: true,
+    });
+    await expect(
+      service.recordHidden({
+        videoId: 'vrec1',
+        title: 'recoverable',
+        surface: 'home',
+        decision,
+        occurredAt: 1,
+        operationId: 'n01-r1',
+        sessionKey: 's',
+      }),
+    ).rejects.toThrow(/IndexedDB unavailable/);
+    // Restore IDB; a FRESH service (a restarted worker) must succeed.
+    Object.defineProperty(globalThis, 'indexedDB', {
+      value: original,
+      configurable: true,
+      writable: true,
+    });
+    const fresh = new StorageService();
+    await fresh.recordHidden({
+      videoId: 'vrec1',
+      title: 'recoverable',
+      surface: 'home',
+      decision,
+      occurredAt: 1,
+      operationId: 'n01-r1',
+      sessionKey: 's',
+    });
+    expect((await fresh.listRecentSummaries(10)).map((s) => s.key)).toContain('v:vrec1');
   });
 
   it('records hides and restores them through the merged review surface', async () => {
