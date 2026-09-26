@@ -15,14 +15,21 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx playwright install chromium --with-deps
+      # Provision BOTH browsers the E2E projects use; an unprovisioned
+      # browser makes `playwright test` fail, not silently skip.
+      - run: npx playwright install chromium firefox --with-deps
       - run: npm run icons
       - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
-      - run: npm run test:e2e
+      - run: npx playwright test --project=chromium-extension
+      # Firefox: artifact-integrity + real-launch smoke (extension runtime
+      # in Firefox is UNVERIFIED — Playwright cannot load extensions there;
+      # see tests/e2e/firefox.smoke.spec.ts).
+      - run: npx playwright test --project=firefox-smoke
       - run: npm run build:firefox
       - run: npm run zip
       - run: npm run zip:firefox
+      - run: node scripts/verify.mjs || true # full chain above already ran; verify emits evidence
