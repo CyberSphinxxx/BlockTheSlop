@@ -2,6 +2,7 @@ import type { RuleMatch, TextRule } from './types';
 import { firstMatch } from './types';
 import { EN_RULES } from './en';
 import { FIL_RULES } from './fil';
+import { MULTILINGUAL_RULES } from './multilingual';
 
 /**
  * Rule pack version — the single authoritative source is domain/versions.ts
@@ -11,7 +12,7 @@ import { RULES_VERSION } from '@/domain/versions';
 export { RULES_VERSION };
 
 /** All known rule packs, keyed by locale prefix. */
-const PACKS: readonly TextRule[] = [...EN_RULES, ...FIL_RULES];
+const PACKS: readonly TextRule[] = [...EN_RULES, ...FIL_RULES, ...MULTILINGUAL_RULES];
 
 const PACK_LANGS: readonly string[] = [...new Set(PACKS.map((r) => r.locale.split('-')[0] ?? ''))];
 
