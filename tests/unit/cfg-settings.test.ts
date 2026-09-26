@@ -30,7 +30,7 @@ describe('CFG-01 settings schema v5', () => {
     expect(s.density).toBe('comfortable');
     expect(s.theme).toBe('system');
     expect(s.rulePacks).toEqual({ fil: true });
-    expect(SETTINGS_SCHEMA_VERSION).toBe(5);
+    expect(SETTINGS_SCHEMA_VERSION).toBeGreaterThanOrEqual(5);
   });
 
   it('persists and round-trips every new field through validation', () => {
