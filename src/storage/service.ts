@@ -16,6 +16,7 @@ import { STORAGE_KEYS } from './keys';
 import { StatsStore } from './stats-store';
 import { validateReviewRecords } from '@/domain/review';
 import type { Classification } from '@/domain/classification';
+import type { RawCacheInput } from './fingerprint';
 import {
   videoKey,
   type CorrectionRecord,
@@ -88,6 +89,19 @@ export class StorageService {
   }
 
   /**
+   * N01: like repos() but THROWS when IndexedDB is unavailable. Durable
+   * writes (history recording) must surface the outage to the caller so the
+   * hide fails open — reading paths degrade to empty instead.
+   */
+  private async reposThrowing(): Promise<Repos> {
+    const repos = await this.repos();
+    if (repos === null) {
+      throw new Error('IndexedDB unavailable: durable history write cannot be committed');
+    }
+    return repos;
+  }
+
+  /**
    * Legacy migration: lazy, once per session, idempotent (04 §6). Safe to
    * call from background startup and from content-script first use.
    */
@@ -115,13 +129,13 @@ export class StorageService {
 
   async recordHidden(input: Omit<RecordEventInput, 'key'> & { sessionKey: string }): Promise<void> {
     await this.ensureMigration();
-    const repos = await this.repos();
-    if (repos === null) return;
+    // N01: persistence failure must reach the CALLER. The orchestrator's
+    // durable-hide precommit decides fail-open presentation; a silently
+    // swallowed write here would strand a hidden card without recovery.
+    const repos = await this.reposThrowing();
     const { sessionKey, ...rest } = input;
     const key = videoKey(rest.videoId, sessionKey);
-    await withRetry(() => repos.history.recordHidden({ ...rest, key })).catch((error) => {
-      logger.error('recordHidden failed', error);
-    });
+    await withRetry(() => repos.history.recordHidden({ ...rest, key }));
   }
 
   async listRecentSummaries(limit: number): Promise<ReviewSummary[]> {
@@ -304,6 +318,48 @@ export class StorageService {
     await withRetry(() => repos.cache.put(input, classification, rulesVersion)).catch((error) => {
       logger.error('putCachedClassification failed', error);
     });
+  }
+
+  /**
+   * N08: batched lookup over raw inputs (fingerprints derived HERE, in the
+   * background — raw evidence in, classification out, never the reverse).
+   * Returns one result per input, in order; undefined = miss.
+   */
+  async getCachedClassifications(
+    rawInputs: readonly RawCacheInput[],
+    rulesVersion: string,
+  ): Promise<Array<Classification | undefined>> {
+    if (rawInputs.length === 0) return [];
+    await this.ensureMigration();
+    const repos = await this.repos();
+    if (repos === null) return rawInputs.map(() => undefined);
+    return withRetry(() => repos.cache.getManyRaw(rawInputs, rulesVersion));
+  }
+
+  /**
+   * N08: batched store over raw inputs. A storage outage DEGRADES (misses on
+   * the next lookup), never corrupts the pipeline.
+   */
+  async putCachedClassifications(
+    rawInputs: readonly RawCacheInput[],
+    classifications: readonly Classification[],
+    rulesVersion: string,
+  ): Promise<void> {
+    if (rawInputs.length === 0) return;
+    const repos = await this.repos();
+    if (repos === null) return;
+    await withRetry(() => repos.cache.putManyRaw(rawInputs, classifications, rulesVersion)).catch(
+      (error) => {
+        logger.error('putCachedClassifications failed', error);
+      },
+    );
+  }
+
+  /** N08: number of cached classification entries (diagnostics/tests). */
+  async countCacheEntries(): Promise<number> {
+    const repos = await this.repos();
+    if (repos === null) return 0;
+    return withRetry(() => repos.cache.count());
   }
 
   async enforceCacheRetention(): Promise<number> {
