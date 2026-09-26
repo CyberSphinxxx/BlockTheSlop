@@ -3,9 +3,102 @@
    touch YouTube live in src/presentation/style.ts and use bts-* namespaces. */
 @import 'tailwindcss';
 
-/* v1 ships a fixed light UI; pin the color scheme so native controls
-   (select dropdowns, checkboxes, scrollbars) match it regardless of the
-   browser/OS theme instead of rendering dark controls on a light page. */
+/* N15: the theme setting (not only the OS) drives dark: variants. */
+@custom-variant dark (&:where(.bts-dark, .bts-dark *));
+
+/* v1 shipped a fixed light UI. N15/CFG-10: the theme setting now really
+   applies — src/ui/theme.ts sets data-bts-theme + .bts-dark on the root and
+   these variables recolor every extension-owned page. Native controls follow
+   color-scheme, so selects/scrollbars match the active palette. */
 :root {
   color-scheme: light;
+  /* V6-13 semantic tokens — components reference THESE, never raw colors.
+     A future theme only defines these variables on :root[data-bts-theme=…]. */
+  --bts-page-bg: #ffffff;
+  --bts-page-fg: #0f172a; /* slate-900 */
+  --bts-muted: rgba(15, 23, 42, 0.7);
+  --bts-panel: rgba(0, 0, 0, 0.04);
+  --bts-border: rgba(0, 0, 0, 0.1);
+  --bts-accent: #1d4ed8; /* blue-700: AA on white for normal text */
+  --bts-accent-fg: #ffffff;
+  --bts-danger: #b91c1c; /* red-700 */
+  --bts-ok: #15803d; /* green-700 */
+  --bts-focus-ring: rgba(29, 78, 216, 0.55);
+}
+:root[data-bts-theme='dark'],
+:root.bts-dark {
+  color-scheme: dark;
+  --bts-page-bg: #0f172a; /* slate-900 */
+  --bts-page-fg: #e2e8f0; /* slate-200 */
+  --bts-muted: rgba(226, 232, 240, 0.7);
+  --bts-panel: rgba(255, 255, 255, 0.08);
+  --bts-border: rgba(255, 255, 255, 0.18);
+  --bts-accent: #93c5fd; /* blue-300: AA on slate-900 */
+  --bts-accent-fg: #0f172a;
+  --bts-danger: #fca5a5; /* red-300 */
+  --bts-ok: #86efac; /* green-300 */
+  --bts-focus-ring: rgba(147, 197, 253, 0.6);
+}
+
+/* V6-13: single focus-visible treatment driven by the token (keyboard a11y). */
+:focus-visible {
+  outline: 2px solid var(--bts-accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--bts-focus-ring);
+}
+
+/* V6-13: shared component skins consume ONLY semantic tokens — component
+   classes carry no raw palette, so a future theme re-skins every page. */
+.bts-btn {
+  background: var(--bts-panel);
+  color: var(--bts-page-fg);
+}
+.bts-btn:hover {
+  filter: brightness(0.96);
+}
+:root[data-bts-theme='dark'] .bts-btn:hover,
+:root.bts-dark .bts-btn:hover {
+  filter: brightness(1.08);
+}
+.bts-btn-primary {
+  background: var(--bts-accent);
+  color: var(--bts-accent-fg);
+}
+.bts-btn-danger {
+  background: var(--bts-danger);
+  color: var(--bts-accent-fg);
+}
+.bts-checkbox {
+  accent-color: var(--bts-accent);
+}
+.bts-segmented-selected {
+  background: var(--bts-page-bg);
+  color: var(--bts-page-fg);
+}
+:root[data-bts-theme='dark'] .bts-segmented-selected,
+:root.bts-dark .bts-segmented-selected {
+  background: var(--bts-panel);
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* The static body classes in index.html are overridden by the resolved
+   theme once settings load (and on every change). */
+body {
+  background: var(--bts-page-bg);
+  color: var(--bts-page-fg);
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  body {
+    transition: none;
+  }
 }
