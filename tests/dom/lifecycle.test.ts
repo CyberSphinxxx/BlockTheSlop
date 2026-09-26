@@ -22,10 +22,12 @@ function deps(overrides: Partial<OrchestratorDeps> = {}): OrchestratorDeps {
   return {
     getSettings: vi.fn(async () => settings()),
     getRules: vi.fn(async () => defaultRules()),
-    getCachedClassification: vi.fn(async () => undefined),
-    putCachedClassification: vi.fn(async () => {}),
+    getCachedClassifications: vi.fn(async (inputs: readonly unknown[]) =>
+      inputs.map(() => undefined),
+    ),
+    putCachedClassifications: vi.fn(async () => {}),
     getCorrections: vi.fn(async () => ({ notAi: false, notSlop: false })),
-    addReviewRecord: vi.fn(async () => {}),
+    recordHiddenDurable: vi.fn(async () => {}),
     applyStats: vi.fn(async () => {}),
     isRemoteProviderEnabled: () => false,
     ...overrides,
@@ -80,7 +82,7 @@ describe('DOM-11: overlapping roots evaluate once per fingerprint', () => {
     await orch.processBatch([main, card, main]);
 
     // One review record for one unique card, despite triple roots.
-    expect(d.addReviewRecord).toHaveBeenCalledTimes(1);
+    expect(d.recordHiddenDurable).toHaveBeenCalledTimes(1);
     orch.stop();
   });
 });
@@ -90,16 +92,16 @@ describe('DOM-14: settings win after every await', () => {
     let current = settings();
     const d = deps({
       getSettings: vi.fn(async () => current),
-      getCachedClassification: vi.fn(
-        () =>
-          new Promise((resolve) => {
+      getCachedClassifications: vi.fn(
+        async (inputs: readonly unknown[]) =>
+          await new Promise<Array<typeof HIGH_CLASSIFICATION | undefined>>((resolve) => {
             // Disable filtering while classification is in flight.
             setTimeout(() => {
               current = settings({ enabled: false });
-              resolve(HIGH_CLASSIFICATION);
+              resolve(inputs.map(() => HIGH_CLASSIFICATION));
             }, 20);
           }),
-      ) as unknown as OrchestratorDeps['getCachedClassification'],
+      ),
     });
     const orch = new FilterOrchestrator(d);
     const main = document.querySelector('main')!;
@@ -182,11 +184,11 @@ describe('DOM-17: hostile/missing identity extraction', () => {
     await orch.processBatch([main]);
     await tick();
     // Hidden by disclosure; record exists but has no fabricated channel id.
-    expect(d.addReviewRecord).toHaveBeenCalledTimes(1);
-    const record = (d.addReviewRecord as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
-      channelId?: string;
+    expect(d.recordHiddenDurable).toHaveBeenCalledTimes(1);
+    const input = (d.recordHiddenDurable as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
+      candidate: { channel: { channelId?: string } };
     };
-    expect(record.channelId).toBeUndefined();
+    expect(input.candidate.channel.channelId).toBeUndefined();
     orch.stop();
   });
 });
@@ -206,7 +208,9 @@ describe('DOM-18: same title, different videos', () => {
 
   it('two elements with the same video id share classification via cache', async () => {
     const d = deps({
-      getCachedClassification: vi.fn(async () => HIGH_CLASSIFICATION),
+      getCachedClassifications: vi.fn(async (inputs: readonly unknown[]) =>
+        inputs.map(() => HIGH_CLASSIFICATION),
+      ),
     });
     const orch = new FilterOrchestrator(d);
     const main = document.querySelector('main')!;
@@ -215,8 +219,8 @@ describe('DOM-18: same title, different videos', () => {
       cardHtml('dupevid01', 'Second render', DISCLOSURE_BADGE);
     await orch.processBatch([main]);
     await tick();
-    // Classification cache consulted for both (2 calls), classify not called.
-    expect(d.getCachedClassification).toHaveBeenCalledTimes(2);
+    // One batched cache round-trip covers both cards; classify not called.
+    expect(d.getCachedClassifications).toHaveBeenCalledTimes(1);
     // Both cards hidden under the same id.
     const hidden = main.querySelectorAll('[data-bts-video-id="dupevid01"]');
     expect(hidden.length).toBe(2);
@@ -235,7 +239,7 @@ describe('DOM-19: observer stop invalidates context', () => {
     await pass;
     await tick();
     expect(main.querySelector('yt-lockup-view-model')!.getAttribute('data-bts-state')).toBeNull();
-    expect(d.addReviewRecord).not.toHaveBeenCalled();
+    expect(d.recordHiddenDurable).not.toHaveBeenCalled();
   });
 
   it('in-flight promises are tracked and settle', async () => {
@@ -287,7 +291,7 @@ describe('DOM-20: unknown future renderer fails open', () => {
     await tick();
     const hidden = main.querySelectorAll('[data-bts-state="hidden"]');
     expect(hidden.length).toBe(0);
-    expect(d.addReviewRecord).not.toHaveBeenCalled();
+    expect(d.recordHiddenDurable).not.toHaveBeenCalled();
     orch.stop();
   });
 });
@@ -322,23 +326,25 @@ describe('DOM-21/22: no query or neighbor contamination', () => {
 });
 
 describe('DOM-23: transient failure is not marked permanently processed', () => {
-  it('a rejected classification pass retried with a new epoch processes again', async () => {
+  it('a rejected batched cache read degrades to local classification; recovery needs no epoch bump', async () => {
     const d = deps();
     let fail = true;
-    d.getCachedClassification = vi.fn(async () => {
+    d.getCachedClassifications = vi.fn(async (inputs: readonly unknown[]) => {
       if (fail) throw new Error('transient');
-      return HIGH_CLASSIFICATION;
-    }) as unknown as OrchestratorDeps['getCachedClassification'];
+      return inputs.map(() => HIGH_CLASSIFICATION);
+    }) as unknown as OrchestratorDeps['getCachedClassifications'];
     const orch = new FilterOrchestrator(d);
     const main = document.querySelector('main')!;
     main.innerHTML = cardHtml('transient', 'AI generated funny fruits', DISCLOSURE_BADGE);
     const card = main.querySelector('yt-lockup-view-model')!;
 
-    // First pass: classification throws → card left unprocessed.
-    await expect(orch.processBatch([main])).rejects.toThrow('transient');
-    expect(card.getAttribute('data-bts-state')).toBeNull();
+    // First pass: the batched cache read throws → N08 degradation: the batch
+    // is NOT rejected; classification happens locally and a decision applies.
+    await orch.processBatch([main]);
+    await tick(80);
+    expect(card.getAttribute('data-bts-state')).not.toBeNull();
 
-    // Retry (simulating recovery + epoch bump like a rescan) succeeds.
+    // After recovery the batched path serves hits; no stale reprocessing.
     fail = false;
     bumpEpoch();
     orch.rescan();
@@ -368,7 +374,9 @@ describe('DOM-24: active Shorts guard opt-in behavior', () => {
   it('guard enabled pauses and covers a matching active Short', async () => {
     const d = deps({
       getSettings: vi.fn(async () => settings({ shortsGuard: { enabled: true } })),
-      getCachedClassification: vi.fn(async () => HIGH_CLASSIFICATION),
+      getCachedClassifications: vi.fn(async (inputs: readonly unknown[]) =>
+        inputs.map(() => HIGH_CLASSIFICATION),
+      ),
     });
     const orch = new FilterOrchestrator(d);
     const main = document.querySelector('main')!;
