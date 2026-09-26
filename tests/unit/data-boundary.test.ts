@@ -9,9 +9,21 @@ import { validateMessageRequest } from '@/background/message-validation';
 describe('DATA-15 background message boundary', () => {
   it('accepts a well-formed request', () => {
     expect(validateMessageRequest({ type: 'settings:get' })).toEqual({ ok: true });
-    expect(validateMessageRequest({ type: 'history:record', payload: { a: 1 } })).toEqual({
-      ok: true,
-    });
+    // history:record must satisfy its full per-type schema (N07).
+    expect(
+      validateMessageRequest({
+        type: 'history:record',
+        payload: {
+          videoId: 'abc123',
+          title: 'Some title',
+          surface: 'home',
+          occurredAt: 1_700_000_000_000,
+          operationId: 'op:1',
+          sessionKey: 'sess-1',
+          decision: { action: 'hide', reason: 'automatic', explanation: ['matched'] },
+        },
+      }),
+    ).toEqual({ ok: true });
   });
 
   it('rejects malformed requests', () => {
