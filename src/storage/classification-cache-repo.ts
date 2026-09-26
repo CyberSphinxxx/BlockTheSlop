@@ -1,5 +1,10 @@
 import type { Classification } from '@/domain/classification';
-import { classificationFingerprint, type FingerprintInput } from './fingerprint';
+import {
+  classificationFingerprint,
+  toFingerprintInput,
+  type FingerprintInput,
+  type RawCacheInput,
+} from './fingerprint';
 import { CLASSIFIER_VERSION } from '@/domain/versions';
 import { idbCount, idbDelete, idbGet, idbGetByIndex, idbPut, type IdbDatabase } from './idb';
 import { STORES } from './idb-schema';
@@ -28,7 +33,6 @@ const CACHE_MAX_ENTRIES = 2000;
 export function cacheKeyFor(fingerprint: string, rulesVersion: string): string {
   return `v1:${fingerprint}:${rulesVersion}`;
 }
-
 export function buildCacheEntry(
   input: FingerprintInput,
   classification: Classification,
@@ -69,8 +73,9 @@ export class ClassificationCacheRepository {
     input: FingerprintInput,
     classification: Classification,
     rulesVersion: string,
+    now: number = Date.now(),
   ): Promise<void> {
-    const entry = buildCacheEntry(input, classification, rulesVersion, Date.now());
+    const entry = buildCacheEntry(input, classification, rulesVersion, now);
     await this.db.withStore(STORES.classificationCache, 'readwrite', (store) =>
       idbPut(store, entry),
     );
@@ -96,6 +101,56 @@ export class ClassificationCacheRepository {
         removed += oldest.length;
       }
       return removed;
+    });
+  }
+
+  /**
+   * N08: batched lookup for one page's candidates. Takes RAW inputs (the
+   * background derives fingerprints — key derivation is never sent from the
+   * content side). Returns `inputs.length` results (undefined = miss) in
+   * order. Expired/version-mismatched rows are NOT deleted here (read path
+   * stays cheap and wait-free); retention reclaims them.
+   */
+  async getManyRaw(
+    rawInputs: readonly RawCacheInput[],
+    rulesVersion: string,
+  ): Promise<Array<Classification | undefined>> {
+    const keys = rawInputs.map((raw) =>
+      cacheKeyFor(classificationFingerprint(toFingerprintInput(raw)), rulesVersion),
+    );
+    return this.db.withStore(STORES.classificationCache, 'readonly', async (store) => {
+      const rows = await Promise.all(keys.map((key) => idbGet<CachedClassification>(store, key)));
+      const now = Date.now();
+      return rows.map((row) =>
+        row !== undefined &&
+        row.classifierVersion === CLASSIFIER_VERSION &&
+        row.ruleVersion === rulesVersion &&
+        now <= row.expiresAt
+          ? row.classification
+          : undefined,
+      );
+    });
+  }
+
+  /**
+   * N08: batched store for freshly classified candidates. One readwrite
+   * transaction (all-or-nothing per batch); each entry carries its own
+   * fingerprint-derived key and TTL.
+   */
+  async putManyRaw(
+    rawInputs: readonly RawCacheInput[],
+    classifications: readonly Classification[],
+    rulesVersion: string,
+  ): Promise<void> {
+    if (rawInputs.length !== classifications.length) {
+      throw new Error('classification cache batch length mismatch');
+    }
+    const now = Date.now();
+    const entries = rawInputs.map((raw, i) =>
+      buildCacheEntry(toFingerprintInput(raw), classifications[i]!, rulesVersion, now),
+    );
+    await this.db.withStore(STORES.classificationCache, 'readwrite', async (store) => {
+      for (const entry of entries) await idbPut(store, entry);
     });
   }
 
