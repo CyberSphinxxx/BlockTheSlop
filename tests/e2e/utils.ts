@@ -47,21 +47,43 @@ function fixtureFileFor(url: URL): string {
   }
 }
 
+/**
+ * V7-02: per-test fixture override. A test can supply HTML for a URL path
+ * fragment without touching the shared fixture files. Pass `null` to clear.
+ */
+let fixtureOverride: { pattern: string; html: string } | null = null;
+export function setFixtureOverride(pattern: string, html: string | null): void {
+  if (html === null) fixtureOverride = null;
+  else fixtureOverride = { pattern, html };
+}
+
 /** Launch Chromium with the unpacked built extension and fixture routing. */
 export async function launchHarness(): Promise<Harness> {
   if (!existsSync(EXTENSION_PATH)) {
     throw new Error(`Extension build not found at ${EXTENSION_PATH}. Run \`npm run build\` first.`);
   }
   const profileDir = mkdtempSync(join(tmpdir(), 'bts-e2e-'));
+  // BTS_E2E_EXECUTABLE: optional escape hatch when the Playwright-managed
+  // Chromium binary is unavailable (e.g. blocked by endpoint protection).
+  // Must be a Chromium-based binary; a real loaded-extension run either way.
+  const executablePath = process.env['BTS_E2E_EXECUTABLE'];
   const context = await chromium.launchPersistentContext(profileDir, {
     headless: false, // extensions require headed mode in Chromium
     args: [`--disable-extensions-except=${EXTENSION_PATH}`, `--load-extension=${EXTENSION_PATH}`],
+    ...(executablePath !== undefined && executablePath !== '' ? { executablePath } : {}),
   });
 
   // Intercept fixture origins and serve local HTML — no network access.
   await context.route('https://www.youtube.com/**', (route) => {
     const url = new URL(route.request().url());
     try {
+      if (fixtureOverride !== null && url.pathname.includes(fixtureOverride.pattern)) {
+        void route.fulfill({
+          body: fixtureOverride.html,
+          contentType: 'text/html; charset=utf-8',
+        });
+        return;
+      }
       const html = readFileSync(fixtureFileFor(url), 'utf8');
       void route.fulfill({ body: html, contentType: 'text/html; charset=utf-8' });
     } catch {
@@ -81,6 +103,18 @@ export async function launchHarness(): Promise<Harness> {
     await new Promise((r) => setTimeout(r, 250));
   }
   if (extensionId === '') throw new Error('Extension service worker never appeared');
+
+  // BTS_E2E_DEBUG=1: surface background service-worker console in the test
+  // output (diagnostic aid; silent unless explicitly requested).
+  if (process.env['BTS_E2E_DEBUG'] === '1') {
+    for (const sw of context.serviceWorkers()) {
+      sw.on('console', (msg) => console.log('[sw]', msg.type(), msg.text()));
+      sw.on('close', () => undefined);
+    }
+    context.on('serviceworker', (sw) => {
+      sw.on('console', (msg) => console.log('[sw]', msg.type(), msg.text()));
+    });
+  }
 
   const [page] = context.pages();
 
