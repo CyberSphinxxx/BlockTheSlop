@@ -56,9 +56,13 @@ function storageBackend(): Backend {
       fallbackAllowedHandles: [],
       fallbackBlockedHandles: [],
       blockedPhrases: [],
+      blockedPhraseRules: [],
     }),
     getReview: async () => [],
     getReviewSummaries: async () => [],
+    listMissReview: async () => [],
+    clearMissReview: async () => true,
+    exportMissReview: async () => [],
     getStats: async () => ({
       cardsEvaluated: 0,
       hidden: 0,
@@ -79,6 +83,10 @@ function storageBackend(): Backend {
     clearCache: async () => undefined,
     clearCorrections: async () => undefined,
     resetStats: async () => undefined,
+    getDailyStats: async () => ({ version: 1, days: {}, currentDay: '2026-09-25' }),
+    resetDailyStats: async () => true,
+    getOnboardingState: async () => ({ completed: true, version: 1 }),
+    completeOnboarding: async () => true,
   } as unknown as Backend;
 }
 
@@ -128,6 +136,77 @@ describe('CFG-03 concurrent options/popup edits', () => {
       ] as Record<string, unknown>;
       expect(stored['mode']).toBe('strict');
       expect(stored['density']).toBe('compact');
+    });
+    options.unmount();
+  });
+  // N04 blocker-5: a failed save must NOT keep the optimistic value — the UI
+  // rolls back to the last persisted settings and shows a visible error.
+  it('a rejected save rolls the UI back and shows an error state', async () => {
+    const backend = storageBackend();
+    let rejectNext = true;
+    const failing: Backend = {
+      ...backend,
+      saveSettings: async (patch: Partial<UserSettings>) => {
+        if (rejectNext) {
+          rejectNext = false;
+          throw new Error('storage write rejected');
+        }
+        return backend.saveSettings(patch);
+      },
+    };
+    const options = render(<OptionsApp backend={failing} />);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Filtering' }));
+    await user.click(await screen.findByRole('radio', { name: /strict/i }));
+
+    // The failure is visible…
+    await waitFor(() => {
+      expect(screen.getByTestId('save-status').textContent).toContain('Save failed');
+    });
+    // …the optimistic value was ROLLED BACK (UI shows the persisted value)…
+    await waitFor(() => {
+      const balanced = document.querySelector(
+        'input[name="opt-mode"][value="balanced"]',
+      ) as HTMLInputElement;
+      expect(balanced.checked).toBe(true);
+      const strict = document.querySelector(
+        'input[name="opt-mode"][value="strict"]',
+      ) as HTMLInputElement;
+      expect(strict.checked).toBe(false);
+    });
+    // …and storage never received the change.
+    const stored = (await browser.storage.local.get('local:settings'))['local:settings'] as Record<
+      string,
+      unknown
+    >;
+    expect(stored['mode']).not.toBe('strict');
+    options.unmount();
+  });
+
+  // N04 blocker-5: TRUE overlapping writes — options and popup save different
+  // fields while both saves are in flight; neither edit may be lost.
+  it('truly overlapping options+popup saves both survive (no lost update)', async () => {
+    const backend = storageBackend();
+    const options = render(<OptionsApp backend={backend} />);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Filtering' }));
+    // Fire the options save (mode → strict) and, before it resolves, a popup
+    // save of a DIFFERENT field. RuntimeBackend merges each patch against
+    // FRESH storage, so the second writer cannot clobber the first.
+    const optionsSave = (async () => {
+      await user.click(await screen.findByRole('radio', { name: /strict/i }));
+    })();
+    const popupSave = backend.saveSettings({ displayMode: 'collapse' });
+    await Promise.all([optionsSave, popupSave]);
+
+    await waitFor(async () => {
+      const stored = (await browser.storage.local.get('local:settings'))[
+        'local:settings'
+      ] as Record<string, unknown>;
+      expect(stored['mode']).toBe('strict');
+      expect(stored['displayMode']).toBe('collapse');
     });
     options.unmount();
   });
