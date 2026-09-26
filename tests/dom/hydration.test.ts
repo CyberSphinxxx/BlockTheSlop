@@ -21,8 +21,10 @@ function deps(): OrchestratorDeps & {
   return {
     getSettings: vi.fn(async () => settings()),
     getRules: vi.fn(async () => defaultRules()),
-    getCachedClassification: vi.fn(async () => undefined),
-    putCachedClassification: vi.fn(async () => {}),
+    getCachedClassifications: vi.fn(async (inputs: readonly unknown[]) =>
+      inputs.map(() => undefined),
+    ),
+    putCachedClassifications: vi.fn(async () => {}),
     getCorrections: vi.fn(async () => ({ notAi: false, notSlop: false })),
     addReviewRecord: vi.fn(async () => {}),
     applyStats: vi.fn(async () => {}),
@@ -120,12 +122,12 @@ describe('orchestrator identity guard (DOM-10, DOM-13)', () => {
       rulesVersion: '1',
       evaluatedAt: Date.now(),
     };
-    d.getCachedClassification = vi.fn(
-      () =>
-        new Promise<typeof slowClassification>((resolve) => {
-          resolveClassify = (value: typeof slowClassification): void => resolve(value);
+    d.getCachedClassifications = vi.fn(
+      (inputs: readonly unknown[]) =>
+        new Promise<Array<typeof slowClassification | undefined>>((resolve) => {
+          resolveClassify = (): void => resolve(inputs.map(() => slowClassification));
         }),
-    ) as unknown as OrchestratorDeps['getCachedClassification'];
+    ) as unknown as OrchestratorDeps['getCachedClassifications'];
     const orch = new FilterOrchestrator(d);
     orch.start();
     const main = document.querySelector('main')!;
