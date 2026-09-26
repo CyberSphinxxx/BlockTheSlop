@@ -4,6 +4,7 @@ import {
   type ReviewEvent,
   type ReviewEventKind,
   type ReviewSummary,
+  validateSummary,
 } from '@/domain/history';
 import {
   idbDelete,
@@ -192,7 +193,16 @@ export class HistoryRepository {
       ? query.pageSize
       : HISTORY_DEFAULT_PAGE_SIZE;
     return this.db.withStore(STORES.reviewSummaries, 'readonly', async (store) => {
-      const all = await idbGetAll<ReviewSummary>(store);
+      // N06 (corrupt rows): rows from older builds or interrupted writes must
+      // never crash the query or surface as broken UI rows. Invalid rows are
+      // skipped (never deleted — deleting unparseable rows could destroy
+      // recoverable user data); validateSummary also normalizes valid rows.
+      const raw = await idbGetAll<unknown>(store);
+      const all = raw.reduce<ReviewSummary[]>((acc, row) => {
+        const summary = validateSummary(row);
+        if (summary !== null) acc.push(summary);
+        return acc;
+      }, []);
       const search = (query.search ?? '').trim().toLowerCase();
       const status = query.status ?? 'all';
       const surface = query.surface ?? 'all';
@@ -345,8 +355,11 @@ export class HistoryRepository {
       const out: string[] = [];
       let seen = 0;
       while (cursor !== null) {
-        seen += 1;
-        if (seen > cap) out.push((cursor.value as ReviewSummary).key);
+        const summary = validateSummary(cursor.value);
+        if (summary !== null) {
+          seen += 1;
+          if (seen > cap) out.push(summary.key);
+        }
         cursor = await continueIndexCursor(request, cursor);
       }
       return out;
@@ -371,10 +384,13 @@ export class HistoryRepository {
       });
       const out: string[] = [];
       while (cursor !== null) {
-        const summary = cursor.value as ReviewSummary;
-        // Boundary is exclusive-prune: exactly-at-cutoff records survive.
-        if (summary.lastSeen >= cutoff) break; // index is ascending: rest are newer
-        out.push(summary.key);
+        const summary = validateSummary(cursor.value);
+        // Corrupt rows are skipped, not deleted; they cannot break the scan.
+        if (summary !== null) {
+          // Boundary is exclusive-prune: exactly-at-cutoff records survive.
+          if (summary.lastSeen >= cutoff) break; // index is ascending: rest are newer
+          out.push(summary.key);
+        }
         cursor = await continueIndexCursor(request, cursor);
       }
       return out;
@@ -446,10 +462,23 @@ export class HistoryRepository {
     return deleted;
   }
 
-  /** Re-insert summaries verbatim (bounded undo of a bulk delete, HIS-16). */
-  async putSummaries(summaries: readonly ReviewSummary[]): Promise<void> {
-    await this.db.withStore(STORES.reviewSummaries, 'readwrite', async (store) => {
-      for (const summary of summaries) await idbPut(store, summary);
+  /**
+   * Re-insert summaries verbatim (bounded undo of a bulk delete, HIS-16;
+   * import merge, N06). Rows that fail structural validation are skipped so
+   * a hostile or stale import can never poison the durable store.
+   */
+  async putSummaries(summaries: readonly ReviewSummary[]): Promise<number> {
+    return this.db.withStore(STORES.reviewSummaries, 'readwrite', async (store) => {
+      let skipped = 0;
+      for (const candidate of summaries) {
+        const summary = validateSummary(candidate);
+        if (summary === null) {
+          skipped += 1;
+          continue;
+        }
+        await idbPut(store, summary);
+      }
+      return skipped;
     });
   }
 
