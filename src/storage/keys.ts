@@ -8,4 +8,8 @@ export const STORAGE_KEYS = {
   classificationCache: 'local:classificationCache',
   reputationCache: 'local:reputationCache',
   providerHealth: 'local:providerHealth',
+  autoChannel: 'local:autoChannel',
+  onboarding: 'local:onboarding',
+  statsDaily: 'local:statsDaily',
+  missReview: 'local:missReview',
 } as const;
