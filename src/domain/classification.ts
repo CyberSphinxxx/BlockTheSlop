@@ -20,3 +20,25 @@ export interface Classification {
   rulesVersion: string;
   evaluatedAt: number;
 }
+
+/**
+ * N08 audit: the cache-relevant projection of a classification. The evidence
+ * array is DIAGNOSTIC (re-derived per candidate, never consumed from cache —
+ * decisions come from `categories`, the Why overlay from `decision
+ * .explanation`), unbounded in count, and would let a single rich batch
+ * exceed the 512KB message cap and silently disable cache writes. The
+ * whitelist also drops any junk fields a compromised content side added.
+ */
+export function classificationForCache(c: Classification): Classification {
+  return {
+    aiLikelihood: c.aiLikelihood,
+    slopLikelihood: c.slopLikelihood,
+    // Shallow copy: never alias the live classification's category map.
+    categories: { ...c.categories },
+    confidence: c.confidence,
+    evidence: [],
+    classifierVersion: c.classifierVersion,
+    rulesVersion: c.rulesVersion,
+    evaluatedAt: c.evaluatedAt,
+  };
+}
