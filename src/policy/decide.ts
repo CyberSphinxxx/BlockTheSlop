@@ -3,7 +3,7 @@ import type { FilterAction, FilterDecision } from '@/domain/decision';
 import type { EvidenceCategory } from '@/domain/evidence';
 import { AI_CATEGORIES, SLOP_CATEGORIES } from '@/domain/evidence';
 import type { UserSettings } from '@/domain/settings';
-import type { UserRules } from '@/domain/rules';
+import { getRuleIndex, normalizeFallbackHandle, type UserRules } from '@/domain/rules';
 import { explainClassification } from '@/detection/explain';
 import { normalizeHandle } from '@/domain/video';
 
@@ -71,6 +71,17 @@ export const MODE_THRESHOLDS: Record<UserSettings['mode'], ModeThresholds> = {
     hideConfidence: ['medium', 'high', 'very-high'],
     warnConfidence: ['low', 'medium', 'high', 'very-high'],
   },
+  aggressive: {
+    // V4-03: explicit opt-in recall preset. Hides on lower scores and admits
+    // 'low' confidence — this DOES accept false positives (measured on the
+    // frozen eval set, recorded in .agents/block-the-slop-v4/). Metadata
+    // absence still never hides (no signal → no score), and thumbnail-only,
+    // unknown-visible and correction-history semantics are unchanged.
+    hideAt: 0.35,
+    warnBelow: 0.55,
+    hideConfidence: ['low', 'medium', 'high', 'very-high'],
+    warnConfidence: ['low', 'medium', 'high', 'very-high'],
+  },
 };
 
 export interface PolicyInput {
@@ -84,6 +95,8 @@ export interface PolicyInput {
     title?: string | undefined;
   };
   classification?: Classification | undefined;
+  /** Active automatic channel blocks (V5-08). */
+  activeAutoChannels?: ReadonlySet<string> | undefined;
   /** User marked this exact video as Not AI / Not slop in the review queue. */
   correctedNotAi?: boolean | undefined;
   correctedNotSlop?: boolean | undefined;
@@ -108,22 +121,24 @@ function ruleHit(
   channelBlocked: boolean;
   viaHandle: boolean;
 } {
+  const index = getRuleIndex(rules);
   const handle = normalizeHandle(candidate.handle);
+  const normalizedFallback = handle !== undefined ? normalizeFallbackHandle(handle) : undefined;
   const videoAllowed =
-    candidate.videoId !== undefined && rules.allowedVideoIds.includes(candidate.videoId);
+    candidate.videoId !== undefined && index.allowedVideoIds.has(candidate.videoId);
   const videoBlocked =
-    candidate.videoId !== undefined && rules.blockedVideoIds.includes(candidate.videoId);
+    candidate.videoId !== undefined && index.blockedVideoIds.has(candidate.videoId);
   const channelAllowed =
-    (candidate.channelId !== undefined && rules.allowedChannelIds.includes(candidate.channelId)) ||
-    (handle !== undefined && rules.fallbackAllowedHandles.includes(handle));
+    (candidate.channelId !== undefined && index.allowedChannelIds.has(candidate.channelId)) ||
+    (normalizedFallback !== undefined && index.fallbackAllowedHandles.has(normalizedFallback));
   const channelBlocked =
-    (candidate.channelId !== undefined && rules.blockedChannelIds.includes(candidate.channelId)) ||
-    (handle !== undefined && rules.fallbackBlockedHandles.includes(handle));
+    (candidate.channelId !== undefined && index.blockedChannelIds.has(candidate.channelId)) ||
+    (normalizedFallback !== undefined && index.fallbackBlockedHandles.has(normalizedFallback));
   const viaHandle =
     candidate.channelId === undefined &&
-    handle !== undefined &&
-    (rules.fallbackAllowedHandles.includes(handle) ||
-      rules.fallbackBlockedHandles.includes(handle));
+    normalizedFallback !== undefined &&
+    (index.fallbackAllowedHandles.has(normalizedFallback) ||
+      index.fallbackBlockedHandles.has(normalizedFallback));
   return { videoAllowed, videoBlocked, channelAllowed, channelBlocked, viaHandle };
 }
 
@@ -178,15 +193,19 @@ export function decide(input: PolicyInput): FilterDecision {
     };
   }
 
-  // 5b. Literal phrase rules (CFG-05): case-insensitive substring match on
-  // the title only — never search-box text, sibling cards, or URLs. Personal
-  // corrections do NOT override them: the phrase rule is a deliberate,
-  // persistent user expression about this title text.
+  // 5b. Literal phrase rules (CFG-05 + V7-09): case-insensitive match on the
+  // title only — never search-box text, sibling cards, or URLs. Two modes:
+  // legacy substring (`blockedPhrases`) and whole-word (`blockedPhraseRules`,
+  // Unicode-aware boundaries). The phrase is LITERAL text — regex
+  // metacharacters are escaped, never interpreted. Personal corrections do
+  // NOT override phrase rules: a deliberate, persistent user expression
+  // about this title text.
   const title = candidate.title ?? '';
-  if (title.length > 0 && rules.blockedPhrases.length > 0) {
+  const index = getRuleIndex(rules);
+  if (title.length > 0) {
     const lowerTitle = title.toLowerCase();
-    const matched = rules.blockedPhrases.find(
-      (phrase) => phrase.length > 0 && lowerTitle.includes(phrase.toLowerCase()),
+    const matched = index.blockedPhrasesLower.find(
+      (phrase) => phrase.length > 0 && lowerTitle.includes(phrase),
     );
     if (matched !== undefined) {
       return {
@@ -196,6 +215,56 @@ export function decide(input: PolicyInput): FilterDecision {
         explanation: [`Hidden by your rule: titles containing “${matched}”.`],
       };
     }
+    // V7-09: whole-word rules. Single-token rules are a tokenized Set lookup
+    // (O(words in title), independent of rule count — 10k rules stay fast);
+    // multi-word rules use once-compiled escaped-literal matchers.
+    if (index.blockedSingleWords.size > 0 || index.blockedMultiWordMatchers.length > 0) {
+      const tokens = title
+        .toLowerCase()
+        .split(/[^^\p{L}\p{N}_]+/u)
+        .filter(Boolean);
+      const single = tokens.find((token) => index.blockedSingleWords.has(token));
+      if (single !== undefined) {
+        return {
+          action: 'hide',
+          reason: 'user-rule',
+          ruleId: 'phrase-block',
+          explanation: [`Hidden by your rule: titles containing the whole word “${single}”.`],
+        };
+      }
+      const multi = index.blockedMultiWordMatchers.find((matcher) => matcher.test(title));
+      if (multi !== undefined) {
+        return {
+          action: 'hide',
+          reason: 'user-rule',
+          ruleId: 'phrase-block',
+          explanation: [
+            `Hidden by your rule: titles containing the whole phrase “${multi.phrase}”.`,
+          ],
+        };
+      }
+    }
+  }
+
+  // 5c. Opt-in Automatic Channel Block (V5-08):
+  // Operates only when autoChannel is enabled and channel is in activeAutoChannels.
+  // Precedence: explicit video/channel allow rules beat this (already checked in 2 & 4).
+  // Personal Not-AI correction on this video overrides this automatic AI channel block.
+  if (
+    settings.autoChannel?.enabled &&
+    input.activeAutoChannels !== undefined &&
+    candidate.channelId !== undefined &&
+    input.activeAutoChannels.has(candidate.channelId) &&
+    input.correctedNotAi !== true
+  ) {
+    return {
+      action: 'hide',
+      reason: 'channel-rule',
+      ruleId: `auto-channel:${candidate.channelId}`,
+      explanation: [
+        'Hidden because this channel was automatically blocked for repeated AI-generated videos (opt-in).',
+      ],
+    };
   }
 
   // 6. Personal corrections — DIMENSIONAL (DET-26/27, audit A14): Not-AI
@@ -288,6 +357,9 @@ function automaticDecision(
   const RESTRICTION: Record<'allow' | 'warn' | 'hide', number> = { allow: 0, warn: 1, hide: 2 };
   let categoryOverride: 'allow' | 'warn' | 'hide' | undefined;
   let overrideScore = -1;
+  // N03: the strongest score among categories whose user override is 'hide' —
+  // a forced hide must be backed by THAT category's own evidence.
+  let forcedHideScore = -1;
   for (const category of overriddenCategories) {
     const action = categoryAction(settings, category);
     if (action === undefined) continue;
@@ -300,6 +372,7 @@ function automaticDecision(
       categoryOverride = action;
       overrideScore = score;
     }
+    if (action === 'hide' && score > forcedHideScore) forcedHideScore = score;
   }
 
   const meetsHideConfidence = thresholds.hideConfidence.includes(classification.confidence);
@@ -318,10 +391,111 @@ function automaticDecision(
     return { action: 'allow', reason: 'automatic', classification, explanation };
   }
 
+  // V4-02 (fixes the v4-kit baseline defect): the residual is computed
+  // SOLELY from uncapped, scope-eligible category evidence. The previous
+  // code re-injected the global dimension score (`dominant`) — which is
+  // itself derived from the Warn-capped category — so a strong Warn-capped
+  // category could hide through the "residual" route. A cap must mean: this
+  // category's evidence can never push the decision past warn, no matter
+  // how the dimension totals look.
+  //
+  // Eligibility for the residual (all must hold):
+  // - the category's user override is NOT 'warn' (not capped),
+  // - the category is not 'ai-thumbnail' (thumbnail-only evidence never
+  //   proves the VIDEO — AGENTS.md evidence rules),
+  // - the category is not itself a user-forced 'hide' (a forced hide uses
+  //   its own floor route below; counting it as "residual backing" would
+  //   let a forced category hide on its own weak evidence via the threshold
+  //   route instead of its floor).
+  let residualDominant = 0;
+  let residualHasEligibleEvidence = false;
+  for (const [category, score] of Object.entries(effective.categories)) {
+    if (score === undefined) continue;
+    const action = categoryAction(settings, category as EvidenceCategory);
+    if (action === 'warn' || action === 'hide') continue;
+    if (category === 'ai-thumbnail') continue;
+    residualDominant = Math.max(residualDominant, score);
+    residualHasEligibleEvidence = true;
+  }
+
+  const residualMeetsHideConfidence = thresholds.hideConfidence.includes(classification.confidence);
+  // Blocker-6 companion guard: a category override's action applies ONLY to
+  // its own category's evidence. Thumbnail-scoped evidence ('ai-thumbnail',
+  // claimScope visual-thumbnail) must never drive a VIDEO hide on its own —
+  // a thumbnail result is not a video result (AGENTS.md evidence rules) — so
+  // a residual computed ONLY from thumbnail evidence is excluded from the
+  // hide routes below. It can still warn.
+  let residualIsThumbnailOnly = true;
+  for (const [category, score] of Object.entries(effective.categories)) {
+    if (score === undefined) continue;
+    if (categoryAction(settings, category as EvidenceCategory) === 'warn') continue;
+    if (category !== 'ai-thumbnail') residualIsThumbnailOnly = false;
+  }
+  if (residualDominant === 0) residualIsThumbnailOnly = false;
+
+  // V4-02: route 1 (threshold hide) must also be backed by UNCAPPED,
+  // scope-eligible category evidence. The dimension scores can be driven by
+  // capped, forced, or thumbnail-only categories; when NO eligible evidence
+  // exists the threshold route cannot fire (the residual route below has
+  // the same requirement via residualHasEligibleEvidence).
+  const hasUncappedBacking = residualHasEligibleEvidence;
+
+  /**
+   * Own-evidence floor for a user-forced category hide. A deliberate user
+   * rule ("always hide this category") is a POLICY decision, not detector
+   * output — it may hide when its own evidence is moderate, gated by the
+   * per-mode confidence class that may hide (never 'low'). The floor keeps
+   * junk evidence (score ≈ 0) from triggering the forced hide while still
+   * honoring the user's explicit intent at medium confidence and above.
+   */
+  const forcedHideFloor = thresholds.hideAt * 0.7;
+
+  // N03: when a category carries a forced 'hide' override, that category's
+  // own evidence must BACK the hide route — an unrelated dimension score
+  // (here: the ONLY category present is the forced one with score 0.05, so
+  // the 0.95 dimension is unbacked by any non-forced evidence) must not
+  // hide through the threshold routes either. Hide evidence must exist
+  // INDEPENDENT of the forced category when that category's own score is
+  // below the floor; forced categories themselves never count as that
+  // independent backing.
+  const forcedHideBackedIndependently =
+    categoryOverride !== 'hide' ||
+    forcedHideScore >= forcedHideFloor ||
+    (() => {
+      for (const [category, score] of Object.entries(effective.categories)) {
+        if (score === undefined) continue;
+        const action = categoryAction(settings, category as EvidenceCategory);
+        if (
+          category !== 'ai-thumbnail' &&
+          action !== 'hide' &&
+          action !== 'warn' &&
+          score >= thresholds.hideAt
+        ) {
+          return true;
+        }
+      }
+      return false;
+    })();
+
   const canHide =
-    categoryOverride !== 'warn' &&
-    ((meetsHideConfidence && meetsHideScore) ||
-      (categoryOverride === 'hide' && classification.confidence !== 'low'));
+    (categoryOverride !== 'warn' &&
+      meetsHideConfidence &&
+      meetsHideScore &&
+      hasUncappedBacking &&
+      forcedHideBackedIndependently) ||
+    // Warn-capped categories still let independent evidence hide (N03/V4-02).
+    (residualHasEligibleEvidence &&
+      residualDominant >= thresholds.hideAt &&
+      residualMeetsHideConfidence &&
+      !residualIsThumbnailOnly &&
+      forcedHideBackedIndependently) ||
+    // N03: a forced category hide requires that category's OWN evidence to
+    // meet the mode's floor — the global confidence alone (possibly driven
+    // by an unrelated category) must never hide on a user's per-category
+    // rule with essentially no supporting score. The forced-hide floor keeps
+    // junk evidence (score ≈ 0) from triggering the forced hide while still
+    // honoring the user's explicit intent at medium confidence and above.
+    (categoryOverride === 'hide' && forcedHideScore >= forcedHideFloor && forcedHideScore > 0);
 
   if (canHide) {
     return { action: 'hide', reason: 'automatic', classification, explanation };
