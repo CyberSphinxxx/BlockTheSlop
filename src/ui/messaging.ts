@@ -3,7 +3,10 @@ import { defaultSettings, migrateSettings, SETTINGS_SCHEMA_VERSION } from '@/dom
 import type { UserRules } from '@/domain/rules';
 import type { ReviewRecord } from '@/domain/review';
 import type { ReviewSummary, ReviewEvent, QuarantineItem } from '@/domain/history';
+import type { MissReviewEntry } from '@/domain/miss-review';
 import type { LocalStats } from '@/domain/stats';
+import type { DailyStatsState } from '@/domain/stats-daily';
+import { rollForwardDay } from '@/domain/stats-daily';
 import type { HistoryQuery, HistoryQueryResult } from '@/storage/history-repository';
 
 /**
@@ -49,6 +52,10 @@ export interface Backend {
   getReview(): Promise<ReviewRecord[]>;
   /** Durable summaries directly (query-based history UI, R19). */
   getReviewSummaries(): Promise<ReviewSummary[]>;
+  /** V7-07: local miss-review diagnostics (bounded, private, export-on-demand). */
+  listMissReview(): Promise<MissReviewEntry[]>;
+  clearMissReview(): Promise<boolean>;
+  exportMissReview(): Promise<MissReviewEntry[]>;
   getStats(): Promise<LocalStats>;
   /** Paged/filtered history query with exact totals (R19/R20). */
   queryHistory(query: HistoryQuery): Promise<HistoryQueryResult>;
@@ -69,6 +76,17 @@ export interface Backend {
   clearCache(): Promise<void>;
   clearCorrections(): Promise<void>;
   resetStats(): Promise<void>;
+  /** V6-02/07: onboarding state (page-surface only). */
+  getOnboardingState(): Promise<{ completed: boolean; version: number }>;
+  /**
+   * V6-07: record setup completion. The optional discovery answer is
+   * LOCAL-ONLY; the background stores it and never sends it anywhere.
+   */
+  completeOnboarding(discoverySource?: string): Promise<boolean>;
+  /** V6-11: durable day-bucketed stats (distinct IDs vs events per local day). */
+  getDailyStats(): Promise<DailyStatsState>;
+  /** V6-11: clear daily stats ONLY — rules/review/corrections survive. */
+  resetDailyStats(): Promise<boolean>;
 }
 
 export class RuntimeBackend implements Backend {
@@ -93,6 +111,19 @@ export class RuntimeBackend implements Backend {
       'review:list',
     );
     return summaries;
+  }
+
+  async listMissReview(): Promise<MissReviewEntry[]> {
+    const { entries } = await send<{ entries: MissReviewEntry[] }>('miss-review:list');
+    return entries;
+  }
+
+  async clearMissReview(): Promise<boolean> {
+    return send<boolean>('miss-review:clear');
+  }
+
+  async exportMissReview(): Promise<MissReviewEntry[]> {
+    return send<MissReviewEntry[]>('miss-review:export');
   }
 
   async getReview(): Promise<ReviewRecord[]> {
@@ -161,5 +192,31 @@ export class RuntimeBackend implements Backend {
 
   async resetStats(): Promise<void> {
     await send('data:reset-stats');
+  }
+
+  async getOnboardingState(): Promise<{ completed: boolean; version: number }> {
+    return send<{ completed: boolean; version: number }>('onboarding:get');
+  }
+
+  async completeOnboarding(discoverySource?: string): Promise<boolean> {
+    return send<boolean>(
+      'onboarding:complete',
+      discoverySource === undefined ? undefined : { discoverySource },
+    );
+  }
+
+  async getDailyStats(): Promise<DailyStatsState> {
+    // Audit A1: the wire format has arrays (Sets do not survive JSON);
+    // rehydrate to the in-memory shape consumers expect.
+    const wire = await send<unknown>('stats:dailyGet');
+    const state = rollForwardDay(wire);
+    if (state === null) {
+      throw new Error('daily statistics response was invalid');
+    }
+    return state;
+  }
+
+  async resetDailyStats(): Promise<boolean> {
+    return send<boolean>('stats:dailyReset');
   }
 }
