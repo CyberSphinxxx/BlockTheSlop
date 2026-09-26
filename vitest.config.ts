@@ -24,5 +24,6 @@ export default defineConfig({
     exclude: ['tests/e2e/**', 'node_modules/**', '.output/**'],
     restoreMocks: true,
     css: false,
+    maxWorkers: 3,
   },
 });
