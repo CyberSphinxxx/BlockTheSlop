@@ -281,7 +281,7 @@ describe('cache correctness (DET-22..24)', () => {
     const { RULES_VERSION } = await import('@/domain/versions');
     const rulesIndex = await import('@/detection/rules');
     expect(rulesIndex.RULES_VERSION).toBe(RULES_VERSION);
-    expect(RULES_VERSION).toBe('2');
+    expect(RULES_VERSION).toBe('3');
   });
 });
 
