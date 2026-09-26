@@ -176,6 +176,46 @@ export const EN_RULES: readonly TextRule[] = [
     reasonText: 'The title matches mass-produced synthetic relaxation content patterns.',
   },
 
+  // ── V4-04 live-sampled family gaps (frozen live sample 2026-09-25): the
+  // live slop economy self-labels the MEDIUM — "AI ASMR", "AI Film", "AI
+  // video" as a genre noun, and hyphenated tool variants — and none of these
+  // families matched any rule. Designed per the DET-07 precedent (ambiguous
+  // contextual signal): title-scoped, ai-visual, so aggressive hides at its
+  // 0.35 floor while balanced/strict only warn; no metadata is invented.
+  {
+    id: 'en:ai-asmr-genre',
+    locale: 'en',
+    pattern: /\bA\.?I\.?[\s-]*ASMR\b/i,
+    category: 'ai-visual',
+    strength: 0.5,
+    context: 'title',
+    claimScope: 'visual',
+    // DET-08-style scoping: "How to make AI ASMR videos (and monetize)" is a
+    // tutorial ABOUT the genre — discussion, not a disclosure of provenance.
+    suppressedBy: [
+      /\bhow\s+to\s+(make|create|edit|produce|monetize|get\s+started)\b/i,
+      /\b(monetize|money|income|revenue)\b/i,
+    ],
+    reasonText:
+      'The title self-labels the medium as AI ASMR, an ambiguous contextual generation signal.',
+  },
+  {
+    id: 'en:ai-film-genre',
+    locale: 'en',
+    pattern:
+      /\bA\.?I\.?[\s-]*(film|movie|cinematic)\b|\bA\.?I\.?\s+short\s+film\b|\bgen[-\s]?A\.?I\.?\s+(short\s+film|film)\b/i,
+    category: 'ai-visual',
+    strength: 0.5,
+    context: 'title',
+    claimScope: 'visual',
+    suppressedBy: [
+      /\bhow\s+to\s+(make|create|edit|produce|get\s+started)\b/i,
+      /\b(tutorial|course|guide|master)\b/i,
+    ],
+    reasonText:
+      'The title self-labels the medium as an AI film/movie, an ambiguous contextual generation signal.',
+  },
+
   // ── Slop patterns ────────────────────────────────────────────────────────
   {
     id: 'en:fake-facts-title',
@@ -273,5 +313,117 @@ export const EN_RULES: readonly TextRule[] = [
     context: 'both',
     polarity: 'opposes',
     reasonText: 'The title is about detecting AI content — a discussion, not a disclosure.',
+  },
+
+  // ── N09 regression additions (corpus misses c007/c010/c011/c013/c025/...)
+  // Tool-name co-anchors: a title naming BOTH "made"-class verbs and an AI
+  // video tool without the strict "generated with" word order. Scoped to
+  // explicit tool nouns so ordinary prose never matches.
+  {
+    id: 'en:made-with-video-tool',
+    locale: 'en',
+    pattern:
+      /\b(made|created|filmed|shot)\b[^.!?]{0,30}?\b(with|using|in|by)\s+(veo|sora|runway|pika(\s?labs)?|midjourney|dall-?e|stable\s+diffusion|synthesia|hey\s?gen|gen-?\d)\b/i,
+    category: 'creator-disclosure',
+    strength: 0.85,
+    context: 'both',
+    claimScope: 'unspecified-generation',
+    correlationKey: 'disclosure:generation',
+    reasonText: 'The text says it was made with an AI video tool.',
+  },
+  {
+    // "Created with OpenAI Sora" — vendor-prefixed tool names.
+    id: 'en:created-with-vendor-tool',
+    locale: 'en',
+    pattern:
+      /\b(created|generated|made)\s+(with|using|by|in)\s+(open\s?ai\s+)?(sora|veo|runway|pika(\s?labs)?|midjourney|dall-?e)\b/i,
+    category: 'creator-disclosure',
+    strength: 0.85,
+    context: 'both',
+    claimScope: 'unspecified-generation',
+    correlationKey: 'disclosure:generation',
+    reasonText: 'The text names the AI tool used to create it.',
+  },
+  {
+    id: 'en:disclosure-parens',
+    locale: 'en',
+    pattern:
+      /\((made|created|generated)\s+with\s+AI\)|\(AI\s*[-–]?\s*generated\)|\bwith\s+AI\s+video\s+tools\b/i,
+    category: 'creator-disclosure',
+    strength: 0.8,
+    context: 'both',
+    claimScope: 'unspecified-generation',
+    correlationKey: 'disclosure:generation',
+    reasonText: 'The title carries an explicit AI parenthetical disclosure.',
+  },
+  {
+    // "hosted by an AI avatar" / "AI avatar" — synthetic presenter.
+    id: 'en:ai-avatar',
+    locale: 'en',
+    pattern: /\b(A\.?I\.?|virtual|synthetic)\s+(avatar|presenter|influencer|news\s*anchor)\b/i,
+    category: 'ai-visual',
+    strength: 0.6,
+    context: 'both',
+    claimScope: 'visual',
+    reasonText: 'The text describes an AI-generated presenter or avatar.',
+  },
+  {
+    // "fully AI video" / "entirely with AI voices" — whole-content claims.
+    id: 'en:fully-ai-content',
+    locale: 'en',
+    pattern:
+      /\b(fully|entirely|completely)\s+(with\s+)?A\.?I\.?(\s+(video|voices?|generated|made))?\b|\ball\s+AI\b/i,
+    category: 'ai-unspecified',
+    strength: 0.6,
+    context: 'both',
+    claimScope: 'unspecified-generation',
+    reasonText: 'The text claims the whole content is AI-produced.',
+  },
+  {
+    // N09 multilingual misses (ja/es): explicit localized disclosure phrases
+    // observed in the corpus. Patterns match the disclosed phrases only.
+    id: 'multilingual:ja-ai-disclosure',
+    locale: 'en',
+    pattern: /AI\u52d5\u753b|AI\u6620\u50cf|AI\u3067\u4f5c\u308b|AI\u751f\u6210/i,
+    category: 'creator-disclosure',
+    strength: 0.8,
+    context: 'both',
+    claimScope: 'unspecified-generation',
+    correlationKey: 'disclosure:generation',
+    reasonText: 'The text discloses AI-generated video (Japanese).',
+  },
+  {
+    id: 'multilingual:es-ai-disclosure',
+    locale: 'en',
+    pattern: /\bhecho\s+con\s+IA\b|\bgenerada?\s+con\s+IA\b|\bvideo\s+hecho\s+con\s+IA\b/i,
+    category: 'creator-disclosure',
+    strength: 0.8,
+    context: 'both',
+    claimScope: 'unspecified-generation',
+    correlationKey: 'disclosure:generation',
+    reasonText: 'The text discloses AI-generated content (Spanish).',
+  },
+  {
+    id: 'multilingual:suno-ia',
+    locale: 'en',
+    pattern: /\bgenerada\s+con\s+Suno\b/i,
+    category: 'ai-music',
+    strength: 0.7,
+    context: 'both',
+    claimScope: 'music',
+    correlationKey: 'disclosure:music',
+    reasonText: 'The text says the music was generated with Suno.',
+  },
+  // ── Shorts title patterns (N09 misses c058/c059/c156/c158) ─────────────
+  {
+    id: 'en:shorts-ai-character',
+    locale: 'en',
+    pattern:
+      /\bA\.?I\.?\s+(baby|babies|chef|professor|presenter)\b.*#shorts|#shorts.*\bA\.?I\.?\s+(baby|babies|chef|professor|presenter)\b/i,
+    category: 'ai-visual',
+    strength: 0.55,
+    context: 'title',
+    claimScope: 'visual',
+    reasonText: 'The title references AI character content in a Short.',
   },
 ];
