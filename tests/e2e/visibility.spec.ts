@@ -98,12 +98,13 @@ test('PRE-02: collapse mode removes the card slot, siblings remain', async () =>
   });
 });
 
-test('PRE-03: repeated warn applications create exactly one overlay', async () => {
-  // Use a card that warns rather than hides: bare #ai title (warn-only).
+test('PRE-03: repeated warn applications create exactly one marker', async () => {
+  // Use a card that warns rather than hides: #ai + generation wording
+  // (hashtag-context → ai-visual, medium confidence → warn in balanced).
   await harness.page.goto('https://www.youtube.com/results?search_query=ai+baby');
   const overlayCount = async () =>
     harness.page.evaluate(
-      () => document.querySelectorAll('[data-testid="card-aihash"] .bts-overlay').length,
+      () => document.querySelectorAll('[data-testid="card-search-aihash"] .bts-warn-marker').length,
     );
   // Trigger reprocessing by forcing a rescan through settings rewrites.
   for (let i = 0; i < 4; i++) {
@@ -126,8 +127,8 @@ test('PRE-04: show once reveals the card; rescan does not re-hide it this page v
       timeout: 20_000,
     })
     .not.toBe('none');
-  // Click the real Show once button.
-  await harness.page.click(`${CARD} .bts-placeholder .bts-button:has-text("Show once")`);
+  // Click the real Reveal once button (N18 label; formerly "Show once").
+  await harness.page.click(`${CARD} .bts-placeholder .bts-button:has-text("Reveal once")`);
   const after = await visibilityOf(harness.page, `${CARD} #video-title-link`);
   expect(after.visibility).not.toBe('hidden');
   // A settings rescan must not re-hide within this page view.
@@ -188,7 +189,7 @@ test('PRE-06: Why expands the real explanation while content stays hidden', asyn
       timeout: 20_000,
     })
     .not.toBe('none');
-  await harness.page.click(`${CARD} .bts-placeholder .bts-button:has-text("Why?")`);
+  await harness.page.click(`${CARD} .bts-placeholder .bts-button:has-text("Why hidden?")`);
   const details = await harness.page.evaluate(
     () => document.querySelector('.bts-why-details')?.textContent ?? null,
   );
@@ -199,7 +200,7 @@ test('PRE-06: Why expands the real explanation while content stays hidden', asyn
   const title = await visibilityOf(harness.page, NATIVE_TITLE);
   expect(title.visibility).toBe('hidden');
   // Toggle closes it.
-  await harness.page.click(`${CARD} .bts-placeholder .bts-button:has-text("Why?")`);
+  await harness.page.click(`${CARD} .bts-placeholder .bts-button:has-text("Why hidden?")`);
   const closed = await harness.page.evaluate(
     () => document.querySelector('.bts-why-details') === null,
   );
