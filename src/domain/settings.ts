@@ -2,7 +2,16 @@ import type { EvidenceCategory } from './evidence';
 import { EVIDENCE_CATEGORIES } from './evidence';
 import type { Surface } from './video';
 
-export type FilterMode = 'safe' | 'balanced' | 'strict';
+/**
+ * Filter modes, weakest to strongest. 'aggressive' (V4-03) is an explicit
+ * opt-in preset: it lowers the hide score floor and admits low-confidence
+ * evidence to hiding, trading measured false positives for recall. It changes
+ * NO category default, so explicit user rules, surface toggles, correction
+ * history and unknown-visibility semantics are preserved; migration is the
+ * presence of the value in FILTER_MODES (older stored settings keep their
+ * mode; nothing is rewritten).
+ */
+export type FilterMode = 'safe' | 'balanced' | 'strict' | 'aggressive';
 export type CategoryAction = 'allow' | 'warn' | 'hide' | 'inherit';
 /** How a hidden card is presented: styled placeholder (default) or full collapse. */
 export type DisplayMode = 'placeholder' | 'collapse';
@@ -12,6 +21,13 @@ export type ProcessingPreset = 'battery' | 'balanced' | 'quality';
 export type Density = 'comfortable' | 'compact';
 /** Color scheme for extension-owned pages (CFG-10); 'system' follows the OS. */
 export type Theme = 'system' | 'light' | 'dark';
+
+/**
+ * V6-10: on-page activity chip placement. 'off' is a real honored choice —
+ * no chip is injected. Default stays bottom-right (the historical position).
+ */
+export type ActivityIndicatorPosition =
+  'off' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 /** Surfaces the extension can filter; 'unknown' is deliberately absent. */
 export const SUPPORTED_SURFACES: readonly Surface[] = [
@@ -60,6 +76,15 @@ export interface RemoteProviderSettings {
   timeoutMs: number;
 }
 
+export interface AutoChannelSettings {
+  /** Default OFF — true auto-blocking requires explicit user opt-in (V5-08). */
+  enabled: boolean;
+  /** Maximum automatic channel promotions per 24 hours (default 5). */
+  maxPromotionsPerDay: number;
+  /** Minimum number of distinct qualifying videos required before auto-blocking (default 3). */
+  minDistinctVideos: number;
+}
+
 export interface UserSettings {
   enabled: boolean;
   mode: FilterMode;
@@ -97,6 +122,9 @@ export interface UserSettings {
   /** Color scheme for extension-owned pages (CFG-10). */
   theme: Theme;
 
+  /** V6-10: optional on-page activity chip (Off + four corners). */
+  activityIndicator: { position: ActivityIndicatorPosition };
+
   /** Additive text rule packs beyond English (CFG-09 real behavior). */
   rulePacks: { fil: boolean };
   /**
@@ -107,11 +135,42 @@ export interface UserSettings {
     enabled: boolean;
   };
 
+  /** Opt-in automatic channel blocking (V5-08). Default OFF. */
+  autoChannel: AutoChannelSettings;
+
   remoteProvider: RemoteProviderSettings;
 }
 
+/**
+ * N04/N15 settings truth: the authoritative set of settings keys whose change
+ * can alter a decision or its presentation on an open YouTube tab. The content
+ * script uses this to decide when a live rescan is required — a key NOT listed
+ * here must never be treated as decision-relevant (and any new
+ * decision-relevant key MUST be added here with a test).
+ */
+export const SETTINGS_EFFECT_KEYS: Record<keyof UserSettings, 'decision' | 'presentation'> = {
+  enabled: 'decision',
+  mode: 'decision',
+  categoryActions: 'decision',
+  rulePacks: 'decision',
+  history: 'presentation',
+  displayMode: 'presentation',
+  showExplanations: 'presentation',
+  density: 'presentation',
+  theme: 'presentation',
+  activityIndicator: 'presentation',
+  surfaces: 'decision',
+  shortsGuard: 'decision',
+  autoChannel: 'decision',
+  performance: 'presentation',
+  collectLocalStats: 'presentation',
+  // Unwired in this build (controls disabled in UI): no runtime effect.
+  youtubeFeedback: 'presentation',
+  remoteProvider: 'presentation',
+};
+
 /** Current settings schema version. Bump when shape changes; add migration. */
-export const SETTINGS_SCHEMA_VERSION = 5 as const;
+export const SETTINGS_SCHEMA_VERSION = 7 as const;
 
 /** Retention bounds (DATA-07): deterministic and documented. */
 export const HISTORY_RETENTION_MIN_DAYS = 1;
@@ -138,7 +197,7 @@ export function defaultSettings(): UserSettings {
     enabled: true,
     mode: 'balanced',
     categoryActions: defaultCategoryActions(),
-    displayMode: 'placeholder',
+    displayMode: 'collapse',
     showExplanations: true,
     collectLocalStats: true,
     surfaces: defaultSurfaceToggles(),
@@ -147,8 +206,14 @@ export function defaultSettings(): UserSettings {
     history: { enabled: true, retentionDays: HISTORY_RETENTION_DEFAULT_DAYS },
     density: 'comfortable',
     theme: 'system',
+    activityIndicator: { position: 'bottom-right' },
     rulePacks: { fil: true },
     youtubeFeedback: { enabled: false },
+    autoChannel: {
+      enabled: false,
+      maxPromotionsPerDay: 5,
+      minDistinctVideos: 3,
+    },
     remoteProvider: { enabled: false, timeoutMs: 5000 },
   };
 }
@@ -157,11 +222,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-const FILTER_MODES: readonly FilterMode[] = ['safe', 'balanced', 'strict'];
+const FILTER_MODES: readonly FilterMode[] = ['safe', 'balanced', 'strict', 'aggressive'];
 const CATEGORY_ACTIONS: readonly CategoryAction[] = ['allow', 'warn', 'hide', 'inherit'];
 const PROCESSING_PRESETS: readonly ProcessingPreset[] = ['battery', 'balanced', 'quality'];
 const DENSITIES: readonly Density[] = ['comfortable', 'compact'];
 const THEMES: readonly Theme[] = ['system', 'light', 'dark'];
+const ACTIVITY_POSITION_SET: ReadonlySet<string> = new Set([
+  'off',
+  'top-left',
+  'top-right',
+  'bottom-left',
+  'bottom-right',
+]);
 
 /** Structural validation used on load and on import. Never trust stored JSON. */
 export function validateSettings(raw: unknown): UserSettings | null {
@@ -235,6 +307,14 @@ export function validateSettings(raw: unknown): UserSettings | null {
     : defaults.density;
   const theme = THEMES.includes(raw['theme'] as Theme) ? (raw['theme'] as Theme) : defaults.theme;
 
+  const indicatorRaw = raw['activityIndicator'];
+  const indicatorPosition =
+    isRecord(indicatorRaw) &&
+    ACTIVITY_POSITION_SET.has(indicatorRaw['position'] as ActivityIndicatorPosition)
+      ? (indicatorRaw['position'] as ActivityIndicatorPosition)
+      : defaults.activityIndicator.position;
+  const activityIndicator = { position: indicatorPosition };
+
   const rulePacksRaw = raw['rulePacks'];
   const rulePacks = {
     fil:
@@ -249,6 +329,28 @@ export function validateSettings(raw: unknown): UserSettings | null {
       isRecord(youtubeFeedbackRaw) && typeof youtubeFeedbackRaw['enabled'] === 'boolean'
         ? youtubeFeedbackRaw['enabled']
         : false,
+  };
+
+  const autoChannelRaw = raw['autoChannel'];
+  const autoChannel: AutoChannelSettings = {
+    enabled:
+      isRecord(autoChannelRaw) && typeof autoChannelRaw['enabled'] === 'boolean'
+        ? autoChannelRaw['enabled']
+        : defaults.autoChannel.enabled,
+    maxPromotionsPerDay:
+      isRecord(autoChannelRaw) &&
+      typeof autoChannelRaw['maxPromotionsPerDay'] === 'number' &&
+      Number.isFinite(autoChannelRaw['maxPromotionsPerDay']) &&
+      autoChannelRaw['maxPromotionsPerDay'] >= 1
+        ? Math.round(autoChannelRaw['maxPromotionsPerDay'])
+        : defaults.autoChannel.maxPromotionsPerDay,
+    minDistinctVideos:
+      isRecord(autoChannelRaw) &&
+      typeof autoChannelRaw['minDistinctVideos'] === 'number' &&
+      Number.isFinite(autoChannelRaw['minDistinctVideos']) &&
+      autoChannelRaw['minDistinctVideos'] >= 2
+        ? Math.round(autoChannelRaw['minDistinctVideos'])
+        : defaults.autoChannel.minDistinctVideos,
   };
 
   const providerRaw = raw['remoteProvider'];
@@ -303,8 +405,10 @@ export function validateSettings(raw: unknown): UserSettings | null {
     history,
     density,
     theme,
+    activityIndicator,
     rulePacks,
     youtubeFeedback,
+    autoChannel,
     remoteProvider,
   };
 }
@@ -315,6 +419,8 @@ export function validateSettings(raw: unknown): UserSettings | null {
  * v2 → v3: introduced `displayMode` (default placeholder).
  * v3 → v4: introduced per-surface toggles, Shorts guard, performance preset.
  * v4 → v5: introduced history controls, density, theme, rule packs.
+ * v5 → v6: introduced autoChannel (default OFF, maxPromotionsPerDay: 5, minDistinctVideos: 3).
+ * v6 → v7: introduced activityIndicator (default bottom-right; preserves existing chip placement).
  */
 export function migrateSettings(raw: unknown, fromVersion: number): UserSettings | null {
   if (!isRecord(raw)) return null;
@@ -331,6 +437,20 @@ export function migrateSettings(raw: unknown, fromVersion: number): UserSettings
     value = { ...value };
     if (value['displayMode'] === undefined) {
       value['displayMode'] = value['showExplanations'] === false ? 'collapse' : 'placeholder';
+    }
+  }
+  if (fromVersion < 6) {
+    value = { ...value };
+    if (value['autoChannel'] === undefined) {
+      value['autoChannel'] = { enabled: false, maxPromotionsPerDay: 5, minDistinctVideos: 3 };
+    }
+  }
+  if (fromVersion < 7) {
+    // v6 stored no indicator key; the chip always showed bottom-right, so the
+    // default preserves that placement exactly (existing users see no change).
+    value = { ...value };
+    if (value['activityIndicator'] === undefined) {
+      value['activityIndicator'] = { position: 'bottom-right' };
     }
   }
   // v3 → v4 fields (surfaces/shortsGuard/performance) are defaulted by
