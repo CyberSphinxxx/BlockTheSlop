@@ -48,7 +48,7 @@ test.describe('built-extension artifact integrity', () => {
       content_scripts?: { js?: string[]; css?: string[]; matches?: string[] }[];
       content_security_policy?: Record<string, string>;
     };
-    expect(manifest.permissions ?? []).toEqual(['storage']);
+    expect(manifest.permissions ?? []).toEqual(['storage', 'contextMenus']);
     expect(manifest.host_permissions ?? []).toEqual(['*://*.youtube.com/*']);
     // MV3: no remote hosted code.
     const csp = manifest.content_security_policy ?? {};
