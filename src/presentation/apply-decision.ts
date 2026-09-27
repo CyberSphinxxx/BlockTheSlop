@@ -84,12 +84,27 @@ export const SLOT_COLLAPSE_VALUE = 'collapse';
  * ytd-rich-item-renderer around one yt-lockup-view-model), hiding only the
  * card leaves an empty grid cell — the "blank slot" regression. The wrapper
  * is marked instead/alongside so the whole cell leaves the grid.
+ *
+ * V7 Shorts V2 (live search-results repro): the Shorts V2 grid nests as
+ *   ytGridShelfViewModelGridShelfRow > ytGridShelfViewModelGridShelfItem
+ *     > ytm-shorts-lockup-view-model-v2 > ytm-shorts-lockup-view-model.
+ * The GridShelfItem DIV is the 216x463 layout cell — hiding only the inner
+ * Short left a fully sized BLANK slot. The item is the slot wrapper; the
+ * multi-item Row is listed ONLY so the bounded walk STOPS there instead of
+ * widening past the shelf — wrapsSingleCard() marks it just when a row truly
+ * holds one card, preserving whole-shelf protection (a shelf row with N
+ * items is never marked). The intermediate ytm-shorts-lockup-view-model-v2
+ * is deliberately NOT a slot wrapper: it is the card's own composition root
+ * (its box coincides with the card), and listing it would make the walk stop
+ * one level too early, leaving the real cell (the item) marked nowhere.
  */
 const SLOT_WRAPPER_SELECTORS: readonly string[] = [
   ...SELECTORS.lockup,
   'ytd-compact-video-renderer',
   'ytd-grid-video-renderer',
   'ytd-playlist-video-renderer',
+  'div.ytGridShelfViewModelGridShelfItem',
+  'div.ytGridShelfViewModelGridShelfRow',
   'ytd-item-section-renderer',
 ];
 
