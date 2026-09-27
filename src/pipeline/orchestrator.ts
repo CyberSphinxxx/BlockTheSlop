@@ -11,7 +11,12 @@ import { decide } from '@/policy/decide';
 import { type Classification, classificationForCache } from '@/domain/classification';
 import { VerdictMemoStore } from '@/storage/verdict-memo-store';
 import { computeSettingsDigest, createVerdictMemoEntry } from '@/domain/verdict-memo';
-import { applyDecision, restore, toggleWhyDetails } from '@/presentation/apply-decision';
+import {
+  applyDecision,
+  clearOrphanedCollapseSlots,
+  restore,
+  toggleWhyDetails,
+} from '@/presentation/apply-decision';
 import { restoreRecursively } from '@/presentation/cleanup';
 import { identityOf } from '@/domain/video';
 import {
@@ -498,6 +503,9 @@ export class FilterOrchestrator {
     const generation = this.generation;
     const work = this.doProcessBatch(roots, generation).finally(() => {
       this.inFlight.delete(work);
+      // §9D: run the document-wide orphaned-slot sweep ONCE per batch, not
+      // per card — per-card calls only clear their bounded neighborhood.
+      clearOrphanedCollapseSlots();
     });
     this.inFlight.add(work);
     return work;
@@ -876,6 +884,17 @@ export class FilterOrchestrator {
     // Duplicate cards or multi-surface appearances on the same page do not
     // make redundant durable writes or inflate summary counts.
     if (decision.action === 'hide') {
+      // Release blocker C / RC2 issue 1 — reserve-before-hide: the embedder
+      // SECURES a session-recovery slot (an explicit reservation owned by
+      // this element) BEFORE this card may hide. The reservation survives
+      // every await below and is committed by onDecisionApplied → record();
+      // every abort/failure path releases it. Refusal keeps the element
+      // visible with a local notice (fail open).
+      if (this.onHideRecoveryReserve !== undefined && !this.onHideRecoveryReserve(element)) {
+        element.removeAttribute('data-bts-collapse');
+        this.onHideAdmissionRefused?.(element, decision, candidate);
+        return;
+      }
       const dedupKey =
         candidate.videoId ??
         shortHash(
@@ -885,11 +904,25 @@ export class FilterOrchestrator {
         const commit = await this.recordHidden(candidate, decision, settings.history.enabled);
         if (!commit.committed) {
           element.removeAttribute('data-bts-collapse');
+          this.onHideRecoveryRelease?.(element);
           this.onHidePersistenceFailed?.(element, decision, candidate, commit.error);
           return;
         }
         this.recordedHidesOnPage.add(dedupKey);
       }
+    }
+
+    /** RC2 issue 1: release the reservation when the hide aborts after reserve. */
+    const releaseReservation = (): void => {
+      this.onHideRecoveryRelease?.(element);
+    };
+    if (generation !== this.generation) {
+      releaseReservation();
+      return;
+    }
+    if (!element.isConnected) {
+      releaseReservation();
+      return;
     }
 
     // N02 blocker-2: the durable write was an AWAIT — generation, settings,
@@ -902,15 +935,26 @@ export class FilterOrchestrator {
     const finalSettings = await this.deps.getSettings();
     if (!finalSettings.enabled) {
       element.removeAttribute('data-bts-collapse');
+      releaseReservation();
       return;
     }
     const finalSurfaceAllowed = surface === 'unknown' || finalSettings.surfaces[surface] !== false;
     if (!finalSurfaceAllowed) {
       element.removeAttribute('data-bts-collapse');
+      releaseReservation();
       return;
     }
     const currentSignatureAfterCommit = identityOf(parseDiscovered(card, surface, Date.now()));
-    if (currentSignatureAfterCommit !== signature) return;
+    if (currentSignatureAfterCommit !== signature) {
+      // Identity changed across the await: the decision is stale. Release
+      // the reservation (the recycled element is no longer the hide's owner).
+      releaseReservation();
+      return;
+    }
+    if (!element.isConnected) {
+      releaseReservation();
+      return;
+    }
     if (!element.isConnected) return;
     const overrideAtCommit = showOnceOverrides.get(element);
     if (
@@ -950,12 +994,45 @@ export class FilterOrchestrator {
 
   /** N01: invoked when a hide could not be durably recorded. The card stays
    * visible; the UI must surface a non-destructive local error. N17: the
-   * triggering error is passed so context invalidation can be distinguished. */
+   * triggering error is passed so context invalidation can be distinguished.
+   * The in-flight recovery reservation is released by the orchestrator via
+   * onHideRecoveryRelease before this fires (RC2 issue 1).
+   */
   onHidePersistenceFailed?: (
     element: Element,
     decision: FilterDecision,
     candidate: NormalizedVideoCandidate,
     error?: unknown,
+  ) => void = undefined;
+
+  /**
+   * Release blocker C / RC2 issue 1 — reserve-before-hide admission.
+   * Invoked BEFORE any hide starts its async pipeline. Implementations take
+   * an EXPLICIT reservation (SessionRecoveryStore.reserve) owned by this
+   * element that survives every await until commit/release. Return false to
+   * REFUSE the hide (the element stays visible, fail open) when no recovery
+   * slot can be secured. Optional for tests/back-compat: undefined means
+   * admission always passes.
+   */
+  onHideRecoveryReserve?: (element: Element) => boolean = undefined;
+
+  /**
+   * RC2 issue 1: release the reservation taken by onHideRecoveryReserve when
+   * the hide aborts after reserving (generation change, disable, surface
+   * off, detachment, identity change, show-once hit, persistence failure).
+   * Must never touch committed entries.
+   */
+  onHideRecoveryRelease?: (element: Element) => void = undefined;
+
+  /**
+   * Release blocker C: invoked when a hide was REFUSED by admission — the
+   * recovery route for this card could not be secured, so filtering fails
+   * open with a concise local indication instead of an unrecoverable hide.
+   */
+  onHideAdmissionRefused?: (
+    element: Element,
+    decision: FilterDecision,
+    candidate: NormalizedVideoCandidate,
   ) => void = undefined;
 
   /**
