@@ -2,6 +2,13 @@ import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'wxt';
 
 // See https://wxt.dev/api/config.html
+// Release blocker A: the manifest description must stay within Chrome's
+// documented 132-character maximum (developer.chrome.com/docs/extensions/
+// reference/manifest — verified 2026-09-27). scripts/validate-manifest.mjs
+// enforces this against the GENERATED manifest on every release verify.
+const MANIFEST_DESCRIPTION =
+  'Filter AI-generated and repetitive YouTube videos locally. Every auto-hide is explainable, recoverable, and yours to undo.';
+
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   vite: () => ({
@@ -11,10 +18,21 @@ export default defineConfig({
   alias: {
     '@': new URL('./src', import.meta.url).pathname,
   },
+  hooks: {
+    // Release blocker A: browser_specific_settings.gecko is a Firefox-only
+    // field. WXT copies userManifest fields verbatim into every target, so
+    // strip it from non-Firefox builds right before the manifest is written
+    // (Chrome ignores it today, but shipping it is noise and Firefox-only
+    // metadata must never describe the Chrome artifact).
+    'build:manifestGenerated': (wxt, manifest) => {
+      if (wxt.config.browser !== 'firefox') {
+        delete (manifest as { browser_specific_settings?: unknown }).browser_specific_settings;
+      }
+    },
+  },
   manifest: {
     name: 'BlockTheSlop — AI Slop Blocker for YouTube',
-    description:
-      'Privacy-first, local-first filtering of AI-generated, automated, repetitive, and low-quality YouTube content. No account, no telemetry, no cloud.',
+    description: MANIFEST_DESCRIPTION,
     version: '1.0.0',
     // Firefox (N05): a stable add-on id is required for permanent sideload
     // installs in a profile; without it the build cannot be verified in a
