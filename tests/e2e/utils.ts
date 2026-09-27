@@ -194,14 +194,25 @@ export async function writeSettings(
     }
 
     await browser.storage.local.set({ 'local:settings': value });
-    const deadline = Date.now() + 5_000;
+    // 15s deadline: under multi-page load the storage write/read round-trip can
+    // exceed 5s (observed as "Timed out waiting for settings to persist" on
+    // capacity-pressure specs); this is harness latency, not product behavior.
+    // SETTLE + RE-VERIFY: on a fresh profile the background service worker's
+    // first-install default-seed (SettingsStore.load writes defaultSettings
+    // when the key is absent) can land AFTER our set+verify, overwriting the
+    // written blob. Re-check after a settle window and rewrite on drift.
+    const deadline = Date.now() + 15_000;
+    let attempt = 0;
     while (Date.now() < deadline) {
+      if (attempt > 0) await browser.storage.local.set({ 'local:settings': value });
+      // Give any late first-install seed time to land before re-checking.
+      await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 1_200 : 300));
       const current = (await browser.storage.local.get('local:settings'))['local:settings'];
       const allKeysPersisted = Object.entries(value).every(([key, expected]) =>
         deepEqual((current as Record<string, unknown> | undefined)?.[key], expected),
       );
       if (allKeysPersisted) return;
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      attempt += 1;
     }
     throw new Error('Timed out waiting for settings to persist');
   }, settings);
