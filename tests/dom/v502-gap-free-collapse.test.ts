@@ -150,10 +150,11 @@ describe('V5-02: Gap-Free Collapse and Recovery Across Surfaces', () => {
 
     const onRestore = vi.fn((el: Element, _sig: string) => {
       restore(el);
+      return true;
     });
 
     const restored = sessionRecovery.restore(items[0]!.id, onRestore);
-    expect(restored).toBe(true);
+    expect(restored).toBe('restored');
     expect(onRestore).toHaveBeenCalledWith(card, 'sig_session1');
     expect(sessionRecovery.count()).toBe(0);
   });
