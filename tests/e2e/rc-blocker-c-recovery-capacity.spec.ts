@@ -162,13 +162,30 @@ test.describe('RC blocker C: history-off recovery survives capacity pressure', (
     await harness.page.goto('https://www.youtube.com/rcbe2c');
     // Capacity pressure: the ten OLDEST cards were evicted through the
     // reveal path (fail-open) — they must be really visible.
+    // GATE ON THE FINAL STEADY STATE (see rc2 spec): display-only polls also
+    // pass on an unprocessed page under load, so every later assertion raced
+    // the batch. Reaching this state requires the batch to be COMPLETE.
     await expect
-      .poll(async () => (await boxOf(harness.page, '[data-testid="watch-0"]')).display, {
-        timeout: 30_000,
-      })
-      .not.toBe('none');
-    const evictedVisible = await boxOf(harness.page, '[data-testid="watch-0"]');
-    expect(evictedVisible.h).toBeGreaterThan(40);
+      .poll(
+        async () => {
+          const state = await harness.page.evaluate(
+            (newestSel: string) => ({
+              collapsed: document.querySelectorAll('[data-bts-collapse]').length,
+              newest: getComputedStyle(document.querySelector(newestSel) ?? document.body).display,
+            }),
+            `[data-testid="watch-${FIRST_BATCH - 1}"]`,
+          );
+          const box = await boxOf(harness.page, '[data-testid="watch-0"]');
+          return (
+            state.collapsed === 100 &&
+            state.newest === 'none' &&
+            box.display !== 'none' &&
+            box.h > 40
+          );
+        },
+        { timeout: 90_000 },
+      )
+      .toBe(true);
     // The newest cards stay hidden.
     expect((await boxOf(harness.page, `[data-testid="watch-${FIRST_BATCH - 1}"]`)).display).toBe(
       'none',
