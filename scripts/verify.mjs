@@ -1,48 +1,121 @@
 /**
- * Release verification gate (v7).
+ * Release verification gate (v7 RC cycle).
  *
- * Runs every acceptance gate IN ORDER against the CURRENT source and a
- * FRESHLY built artifact, then writes
+ * Runs every acceptance gate IN ORDER against the CURRENT source and the
+ * artifacts built by THIS run, then writes
  * `.agents/block-the-slop-v7/RELEASE_EVIDENCE.json` with:
  *   - the exact source tree fingerprint (see fingerprintRule),
  *   - per-gate command + exit code + duration,
+ *   - actual unit test counts parsed from the Vitest run (never hardcoded),
  *   - browser versions used by the E2E run,
  *   - artifact hashes (build manifests, zips) — null hashes FAIL the run,
- *   - fixture vs live evidence distinction.
+ *   - packaged-vs-tested byte equality proof,
+ *   - evidence history (prior runs preserved, clearly distinguished).
  *
- * This command verifies build/test gates and artifact hashes. Product
- * requirements involving live YouTube, Firefox extension runtime, or a
- * competitor side-by-side still require separately recorded evidence.
+ * Ordering requirements (§7):
+ *   - the Chrome artifact is built BEFORE browser tests, and the Chrome zip
+ *     packages EXACTLY that tested build (byte-for-byte, verified), so
+ *     "tested" and "shipped" are the same bytes;
+ *   - generated-manifest validation runs against the freshly built manifests;
+ *   - missing artifacts, hash mismatches, or nonzero required gates fail.
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const EVIDENCE_DIR = join(root, '.agents', 'block-the-slop-v7');
+const EVIDENCE_FILE = join(EVIDENCE_DIR, 'RELEASE_EVIDENCE.json');
 
+/**
+ * Gates in order. Notes:
+ *  - `build` (chrome) runs BEFORE e2e:chromium-extension so browser tests load
+ *    the artifact this run produced.
+ *  - `verify:manifests` validates the GENERATED manifests in .output.
+ *  - `zip` runs after the e2e suites; `verify:packaged-chrome` then proves the
+ *    zip contains exactly the build the tests exercised.
+ */
 const gates = [
   { name: 'icons', cmd: 'npm run icons', required: true },
   { name: 'format:check', cmd: 'npm run format:check', required: true },
   { name: 'lint', cmd: 'npm run lint', required: true },
   { name: 'typecheck', cmd: 'npm run typecheck', required: true },
-  { name: 'unit', cmd: 'npm test', required: true },
+  { name: 'unit', cmd: 'npm test', required: true, parseTests: true },
+  {
+    name: 'test:artifact-integrity',
+    cmd: 'node scripts/test-artifact-inventory.mjs',
+    required: true,
+  },
   { name: 'build', cmd: 'npm run build', required: true },
+  {
+    name: 'verify:manifest-chrome',
+    cmd: 'node scripts/validate-manifest.mjs chrome-mv3 --target chrome',
+    required: true,
+  },
+  {
+    name: 'inventory:capture-chrome',
+    cmd: 'node scripts/artifact-inventory.mjs capture chrome-mv3 chrome',
+    required: true,
+  },
   {
     name: 'e2e:chromium-extension',
     cmd: 'npx playwright test --project=chromium-extension',
     required: true,
+    parseE2e: true,
   },
-  { name: 'e2e:firefox-smoke', cmd: 'npx playwright test --project=firefox-smoke', required: true },
+  {
+    name: 'inventory:check-test-chrome',
+    cmd: 'node scripts/artifact-inventory.mjs check-test chrome-mv3 chrome',
+    required: true,
+  },
   { name: 'build:firefox', cmd: 'npm run build:firefox', required: true },
+  {
+    name: 'verify:manifest-firefox',
+    cmd: 'node scripts/validate-manifest.mjs firefox-mv2 --target firefox',
+    required: true,
+  },
+  {
+    name: 'inventory:capture-firefox',
+    cmd: 'node scripts/artifact-inventory.mjs capture firefox-mv2 firefox',
+    required: true,
+  },
+  {
+    name: 'e2e:firefox-smoke',
+    cmd: 'npx playwright test --project=firefox-smoke',
+    required: true,
+    parseE2e: true,
+  },
+  {
+    name: 'inventory:check-test-firefox',
+    cmd: 'node scripts/artifact-inventory.mjs check-test firefox-mv2 firefox',
+    required: true,
+  },
   { name: 'zip', cmd: 'npm run zip', required: true },
+  {
+    name: 'inventory:check-zip-chrome',
+    cmd: 'node scripts/artifact-inventory.mjs check-zip block-the-slop-1.0.0-chrome.zip chrome-mv3 chrome',
+    required: true,
+  },
   { name: 'zip:firefox', cmd: 'npm run zip:firefox', required: true },
+  {
+    name: 'inventory:check-zip-firefox',
+    cmd: 'node scripts/artifact-inventory.mjs check-zip block-the-slop-1.0.0-firefox.zip firefox-mv2 firefox',
+    required: true,
+  },
 ];
 
 // ---- fingerprint: SHA-256 over sorted repo file names + contents ----------
-// Excludes generated/volatile dirs; matches the rule in state.json.
+// Keep EXCLUDED_DIRS in lockstep with scripts/fingerprint.mjs.
 const EXCLUDED_DIRS = new Set([
   '.output',
   'node_modules',
@@ -80,6 +153,14 @@ function sourceFingerprint() {
   return hash.digest('hex');
 }
 
+/** Same rule as scripts/fingerprint.mjs — asserted before any gate runs. */
+function fingerprintRuleDirsFromScript() {
+  const script = readFileSync(join(root, 'scripts', 'fingerprint.mjs'), 'utf8');
+  const match = /const EX = new Set\(\[([\s\S]*?)\]\);/.exec(script);
+  if (match === null) return null;
+  return new Set([...match[1].matchAll(/'([^']+)'/g)].map((m) => m[1]));
+}
+
 // ---- browser versions (from the installed Playwright browsers) ------------
 function browserVersions() {
   const out = { chromium: null, firefox: null };
@@ -101,36 +182,111 @@ function hashFile(path) {
   };
 }
 
+/** Strip ANSI color escapes so summary lines are parseable. */
+function stripAnsi(text) {
+  return text.replace(/\u001b\[[0-9;]*m/g, '');
+}
+
+function parseVitestTotals(stdout, stderr) {
+  const text = stripAnsi(`${stdout}\n${stderr}`);
+  const files = /Test Files\s+(\d+) passed/.exec(text);
+  const tests = /Tests\s+(\d+) passed/.exec(text);
+  if (tests === null) return null;
+  return { passed: Number(tests[1]), files: files === null ? null : Number(files[1]) };
+}
+
+function parsePlaywrightTotals(stdout, stderr) {
+  const text = stripAnsi(`${stdout}\n${stderr}`);
+  const passed = /(\d+) passed/.exec(text);
+  if (passed === null) return null;
+  const failed = /(\d+) failed/.exec(text);
+  return {
+    passed: Number(passed[1]),
+    failed: failed === null ? 0 : Number(failed[1]),
+  };
+}
+
+// ---- lockstep assertion: verify.mjs and fingerprint.mjs must exclude the
+// same directories, or the recorded fingerprint describes a different tree.
+{
+  const verifyDirs = EXCLUDED_DIRS;
+  const scriptDirs = fingerprintRuleDirsFromScript();
+  if (scriptDirs === null) {
+    process.stderr.write(
+      '✗ cannot parse EX set from scripts/fingerprint.mjs (lockstep check broken)\n',
+    );
+    process.exit(1);
+  }
+  const onlyVerify = [...verifyDirs].filter((d) => !scriptDirs.has(d)).sort();
+  const onlyScript = [...scriptDirs].filter((d) => !verifyDirs.has(d)).sort();
+  if (onlyVerify.length > 0 || onlyScript.length > 0) {
+    process.stderr.write(
+      `✗ fingerprint exclusions out of lockstep — verify.mjs only: ${JSON.stringify(onlyVerify)}, fingerprint.mjs only: ${JSON.stringify(onlyScript)}\n`,
+    );
+    process.exit(1);
+  }
+  process.stdout.write('✓ fingerprint exclusions in lockstep with scripts/fingerprint.mjs\n');
+}
+
 // ---- gates -----------------------------------------------------------------
 const gateResults = [];
+let unitTotals = null;
+let e2eChromiumTotals = null;
+let e2eFirefoxTotals = null;
 for (const gate of gates) {
   const started = Date.now();
   process.stdout.write(`\n=== GATE ${gate.name}: ${gate.cmd}\n`);
   const result = spawnSync(gate.cmd, {
     cwd: root,
     shell: true,
-    stdio: 'inherit',
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: process.env,
+    maxBuffer: 64 * 1024 * 1024,
   });
   const durationMs = Date.now() - started;
-  gateResults.push({
+  // Echo captured output (preserves the live log the user watches).
+  process.stdout.write(result.stdout ?? '');
+  process.stderr.write(result.stderr ?? '');
+  const gateResult = {
     name: gate.name,
     cmd: gate.cmd,
     exit: result.status,
     durationMs,
     required: gate.required,
-  });
+  };
+  if (gate.parseTests) {
+    const totals = parseVitestTotals(
+      result.stdout?.toString() ?? '',
+      result.stderr?.toString() ?? '',
+    );
+    if (totals !== null) {
+      gateResult.tests = totals;
+      unitTotals = totals;
+    }
+  }
+  if (gate.parseE2e) {
+    const totals = parsePlaywrightTotals(
+      result.stdout?.toString() ?? '',
+      result.stderr?.toString() ?? '',
+    );
+    if (totals !== null) {
+      gateResult.tests = totals;
+      if (gate.name === 'e2e:chromium-extension') e2eChromiumTotals = totals;
+      if (gate.name === 'e2e:firefox-smoke') e2eFirefoxTotals = totals;
+    }
+  }
+  gateResults.push(gateResult);
   if (result.status !== 0) {
     process.stderr.write(`\n✗ GATE FAILED: ${gate.name} (exit ${result.status})\n`);
     // Write partial evidence even on failure so the checker can see WHICH
     // gate failed and when (never silently stale).
-    writeEvidence(gateResults, true);
+    writeEvidence(gateResults, true, `gate ${gate.name} exited ${result.status}`);
     process.exit(result.status ?? 1);
   }
   process.stdout.write(`✓ ${gate.name}\n`);
 }
 
-function writeEvidence(gates, failed, failureNote) {
+function writeEvidence(gatesPassed, failed, failureNote) {
   const fingerprint = sourceFingerprint();
   const artifacts = {
     'chrome-mv3/manifest.json': hashFile(join(root, '.output', 'chrome-mv3', 'manifest.json')),
@@ -147,14 +303,25 @@ function writeEvidence(gates, failed, failureNote) {
     process.exit(1);
   }
   const evidence = {
-    schemaVersion: 6,
+    schemaVersion: 7,
     runId: `verify-${new Date().toISOString().replace(/[:.]/g, '-')}`,
     generatedAt: new Date().toISOString(),
     sourceFingerprint: fingerprint,
     fingerprintRule:
       'SHA-256 over sorted repo file names + contents, excluding .output, node_modules, test-results, kit dirs, .git, .freebuff, .agents.',
-    gates,
+    gates: gatesPassed,
+    testTotals: {
+      unitDomUi: unitTotals,
+      e2eChromiumExtension: e2eChromiumTotals,
+      e2eFirefoxSmoke: e2eFirefoxTotals,
+      note: 'parsed from the gate output of THIS run; not hardcoded',
+    },
     browsers: browserVersions(),
+    testedBuildInventories: {
+      chrome: 'inventory/tested-build-chrome.json',
+      firefox: 'inventory/tested-build-firefox.json',
+      note: 'Captured after build+manifest validation, verified unchanged after browser tests, and used as the comparison base for packaged zips (see scripts/artifact-inventory.mjs). Hashes recorded in artifacts plus per-file sha256 inside the inventory files.',
+    },
     artifacts,
     evidenceBoundary: {
       fixture:
@@ -166,7 +333,26 @@ function writeEvidence(gates, failed, failureNote) {
     ...(failed ? { failed: true, failureNote: failureNote ?? 'a gate exited nonzero' } : {}),
   };
   mkdirSync(EVIDENCE_DIR, { recursive: true });
-  writeFileSync(join(EVIDENCE_DIR, 'RELEASE_EVIDENCE.json'), JSON.stringify(evidence, null, 2));
+  // Preserve evidence history: prior runs are kept (bounded) and clearly
+  // distinguished; the live file always describes the LATEST run.
+  try {
+    const previousRaw = readFileSync(EVIDENCE_FILE, 'utf8');
+    const previous = JSON.parse(previousRaw);
+    if (previous?.runId && previous.runId !== evidence.runId) {
+      const historyDir = join(EVIDENCE_DIR, 'history');
+      mkdirSync(historyDir, { recursive: true });
+      const stamp = previous.runId.replace(/^verify-/, '');
+      writeFileSync(join(historyDir, `RELEASE_EVIDENCE-${stamp}.json`), previousRaw);
+      const keep = readdirSync(historyDir)
+        .filter((f) => f.startsWith('RELEASE_EVIDENCE-') && f.endsWith('.json'))
+        .sort()
+        .reverse();
+      for (const old of keep.slice(20)) rmSync(join(historyDir, old));
+    }
+  } catch {
+    // No prior evidence (or unreadable): nothing to preserve.
+  }
+  writeFileSync(EVIDENCE_FILE, JSON.stringify(evidence, null, 2));
 }
 
 writeEvidence(gateResults, false);
