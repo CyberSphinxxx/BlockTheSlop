@@ -45,7 +45,7 @@ npm run test:e2e       # Playwright extension E2E (Chromium persistent context)
 npm run verify         # FULL release gate: every gate in order + artifact hashes
 ```
 
-E2E tests load the **actual built extension** from `.output/chrome-mv3` into a persistent Chromium context and exercise real extension lifecycle: service worker, popup, options, and YouTube fixture pages served locally. `npm run verify` refuses to pass on any gate failure and records artifact hashes to `.agents/block-the-slop-v5/RELEASE_EVIDENCE.json` (SET-05: no stale or fabricated evidence; the file carries the exact source fingerprint).
+E2E tests load the **actual built extension** from `.output/chrome-mv3` into a persistent Chromium context and exercise real extension lifecycle: service worker, popup, options, and YouTube fixture pages served locally. `npm run verify` refuses to pass on any gate failure and records artifact hashes to `.agents/block-the-slop-v7/RELEASE_EVIDENCE.json` (SET-05: no stale or fabricated evidence; the file carries the exact source fingerprint, parsed test counts, and prior runs are preserved under `history/`).
 
 ## Measured behavior (honest numbers, not marketing)
 
@@ -115,7 +115,11 @@ See `docs/` for the full specification: product, architecture, data model, detec
 - No watch/search history leaves the device. No page content is uploaded.
 - Remote reputation provider: the toggle exists but is **not wired in this build** — no remote calls occur regardless of its state (surfaced honestly in Settings → Privacy).
 - "Also tell YouTube Not interested": toggle exists but is **not wired in this build** — no YouTube account actions are ever performed (surfaced honestly in Settings → Privacy).
-- Permissions: `storage` only, plus YouTube host access. No scripting injection, no tabs, no browsing data.
+- Permissions: `storage`, `contextMenus`, and YouTube host access — each serving a shipped feature:
+  - `storage` keeps your settings, rules, corrections, history, and statistics on your device.
+  - `contextMenus` powers the right-click **Hide this video / Block this channel** entries on YouTube cards.
+  - `*://*.youtube.com/*` lets the content script run on YouTube pages, where filtering happens — no other host is touched, and nothing is injected elsewhere.
+- No scripting injection beyond YouTube, no tabs, no browsing data, no remote code. The production bundle makes no requests off the extension's own origin.
 - Imported files are treated as untrusted data: size/nesting bounded, prototype-like keys rejected, remote/feedback flags arrive disabled.
 
 ## License
