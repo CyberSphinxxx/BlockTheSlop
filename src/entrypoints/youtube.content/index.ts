@@ -15,11 +15,11 @@ import {
   applyPresentationPreferences,
   restore,
   stampIsCurrent,
-  identityStillMatches,
+  identityRestoreMode,
   announcePersistenceError as announcePersistenceErrorUi,
 } from '@/presentation/apply-decision';
 import { HideActivityNotice } from '@/presentation/activity';
-import { sessionRecovery } from '@/presentation/session-recovery';
+import { sessionRecovery, type SessionRecoveryStore } from '@/presentation/session-recovery';
 import { cleanupAll } from '@/presentation/cleanup';
 import { normalizeHandle, identityOf } from '@/domain/video';
 import type { FilterDecision } from '@/domain/decision';
@@ -33,6 +33,20 @@ import { showChannelChoiceNotice } from '@/presentation/channel-choice-notice';
 import { showWhyInspector, hideWhyInspector } from '@/presentation/why-inspector';
 import { currentPageContext, pageContextFromUrl } from '@/youtube/routes';
 import type { RuleMutation } from '@/domain/rules';
+
+/**
+ * RC2 issue 1 — PRODUCTION admission wiring, extracted so tests exercise the
+ * exact code the content script runs: every hide reserves a session-recovery
+ * slot before its async pipeline and releases it on abort. Called from main()
+ * with the singleton store.
+ */
+export function wireRecoveryAdmission(
+  orchestrator: FilterOrchestrator,
+  store: Pick<SessionRecoveryStore, 'reserve' | 'releaseReservation'>,
+): void {
+  orchestrator.onHideRecoveryReserve = (element) => store.reserve(element);
+  orchestrator.onHideRecoveryRelease = (element) => store.releaseReservation(element);
+}
 
 /**
  * Content-script storage boundary (04 §6): content scripts never touch
@@ -246,20 +260,76 @@ export default defineContentScript({
 
     const orchestrator = new FilterOrchestrator(deps);
     const activity = new HideActivityNotice();
-    // V7-04: every recovery reveal validates — at click time — that the
-    // element still holds the content the hide decision belongs to. A
-    // recycled element is UN-WEDGED (plain restore, no show-once override):
-    // its current content was never decided on, so it must be visible and
-    // re-evaluated fresh; granting it the old override would skip that.
-    const validatedRestore = (el: Element, sig: string) => {
-      if (identityStillMatches(el, sig)) {
+    // V7-04, tightened by audit Finding 3: every recovery reveal validates —
+    // at click time — that the element still holds the content the hide
+    // decision belongs to. THREE outcomes:
+    //  - verified: saved identity, stamp and current content all agree → the
+    //    show-once override applies for the revealed video;
+    //  - unverified: ours but not provably the same video (empty/malformed
+    //    saved identity, recycled card) → UN-WEDGED with a plain restore and
+    //    NO identity-specific override: the content is re-evaluated fresh;
+    //  - foreign: the element carries none of our evidence stamps (never
+    //    decided by us) → the restore action must not touch it at all.
+    // Audit RC blocker B + RC2 issue 2: report the restore OUTCOME with
+    // explicit semantics — true = restored; 'obsolete' = the element
+    // demonstrably holds unrelated content (no stamp of ours at all), so the
+    // entry is discarded; the store treats a throw as 'failed' and RETAINS
+    // the entry for retry.
+    const validatedRestore = (el: Element, sig: string): boolean | 'obsolete' => {
+      const mode = identityRestoreMode(el, sig);
+      if (mode === 'verified') {
         orchestrator.showOnce(el, sig);
-      } else {
-        restore(el);
+        activity.scheduleUpdate();
+        return true;
       }
-      activity.scheduleUpdate();
+      if (mode === 'unverified') {
+        restore(el);
+        // RC2 issue 1: a plain restore drops any in-flight reservation held
+        // by this element (show-once on a recycled/unknown card would
+        // otherwise expire with the reservation stranded).
+        sessionRecovery.releaseReservation(el);
+        activity.scheduleUpdate();
+        return true;
+      }
+      // foreign: the element carries none of our stamps — demonstrably
+      // unrelated content (restored already, or never ours). Discard.
+      return 'obsolete';
     };
     activity.onRestore = validatedRestore;
+
+    // Audit Finding 2 + release blocker C: when the bounded session store
+    // must evict a CONNECTED entry (capacity reached with history off), the
+    // card is revealed first — fail-open, so no still-hidden card ever
+    // silently loses its last recovery route. The reveal is a plain restore
+    // (no show-once override: the hide simply stops holding). Release blocker
+    // C semantics: the callback REPORTS success/failure (false or a throw =
+    // failure) so the store preserves the entry on failure instead of
+    // destroying it; identity freshness is validated before revealing so an
+    // old entry can never reveal unrelated recycled content; a reentrancy
+    // guard keeps a nested hide (triggered by the reveal) from evicting
+    // again inside the same admission.
+    let evictionInFlight = false;
+    sessionRecovery.setEvictionCallback((entry) => {
+      if (evictionInFlight) return false; // reentrancy guard: never nest evictions
+      if (!entry.element.isConnected) return true; // nothing to reveal
+      // Identity freshness: a stampless element is either restored by us
+      // (disable/cleanup — it no longer owes recovery) or never ours; either
+      // way the entry is stale and eviction SUCCEEDS without revealing
+      // anything (a card hidden BY US always carries our stamp, so a real
+      // hidden card can never land here). A STALE STAMP (recycled element)
+      // is 'unverified': a plain restore only removes our leftover marks
+      // from content that is not the recorded video — never a false reveal.
+      const fresh = identityRestoreMode(entry.element, entry.signature);
+      if (fresh === 'foreign') return true;
+      evictionInFlight = true;
+      try {
+        restore(entry.element);
+        activity.scheduleUpdate();
+      } finally {
+        evictionInFlight = false;
+      }
+      return true;
+    });
 
     /** Apply a rule mutation, then invalidate caches and rescan everywhere. */
     const applyRuleAndRescan = async (mutation: RuleMutation): Promise<void> => {
@@ -362,9 +432,26 @@ export default defineContentScript({
     // context invalidation is NOT a storage failure — it means the whole
     // extension went away; the teardown path handles the announcement, so
     // only the silent restore happens here.
+    // RC2 issue 1 — PRODUCTION admission wiring: every hide reserves a
+    // session-recovery slot before its async pipeline starts (persist +
+    // settings reads), and the reservation is committed by record() after
+    // presentation or released on any abort. Refusal leaves the card visible
+    // with the local notice below (fail open); older cards keep their routes.
+    wireRecoveryAdmission(orchestrator, sessionRecovery);
+
     orchestrator.onHidePersistenceFailed = (element, decision, candidate, error) => {
       restore(element);
+      // RC2 issue 1: the in-flight reservation was already released by the
+      // orchestrator (onHideRecoveryRelease) before this hook fires.
       if (!isContextInvalidated(error)) announcePersistenceError(element);
+    };
+
+    // Release blocker C: admission refused the hide because no recovery slot
+    // could be secured (history off, store at capacity, eviction failing).
+    // Fail open with the SAME concise local indication as a persistence
+    // failure — the card stays visible and the user learns why.
+    orchestrator.onHideAdmissionRefused = (element) => {
+      announcePersistenceError(element);
     };
 
     setPresentationCallbacks({
@@ -481,9 +568,13 @@ export default defineContentScript({
         const payload = msg.payload as { id: string } | undefined;
         if (payload?.id) {
           const entry = sessionRecovery.list().find((item) => item.id === payload.id);
-          const ok = sessionRecovery.restore(payload.id, validatedRestore);
+          // RC2 issue 2: explicit outcome — 'restored' reveals the card,
+          // 'obsolete' discards a provably dead entry, 'failed' RETAINS the
+          // row so the user can retry. Only 'restored' is acknowledged and
+          // counted in statistics.
+          const outcome = sessionRecovery.restore(payload.id, validatedRestore);
           // Audit A3: record the daily restore outcome (fire-and-forget).
-          if (ok && settingsCache?.collectLocalStats) {
+          if (outcome === 'restored' && settingsCache?.collectLocalStats) {
             void sendBackground('stats:dailyRecord', {
               outcome: 'restore' as const,
               videoId: entry?.videoId,
@@ -491,9 +582,12 @@ export default defineContentScript({
               observedAt: Date.now(),
             }).catch(() => undefined);
           }
-          return Promise.resolve({ restored: ok });
+          return Promise.resolve({
+            restored: outcome === 'restored',
+            outcome,
+          });
         }
-        return Promise.resolve({ restored: false });
+        return Promise.resolve({ restored: false, outcome: 'obsolete' });
       }
 
       if (msg.type === 'orchestrator:rescan') {
