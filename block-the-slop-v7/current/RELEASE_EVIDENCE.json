@@ -1,0 +1,212 @@
+{
+  "schemaVersion": 7,
+  "runId": "verify-2026-09-27T19-59-32-672Z",
+  "generatedAt": "2026-09-27T19:59:32.673Z",
+  "sourceFingerprint": "96ec304ee1c648e69a60deb23b4f0acc790a9aae07f5c65bf96410e9a6fcac0c",
+  "fingerprintRule": "SHA-256 over sorted repo file names + contents, excluding .output, node_modules, test-results, kit/evidence dirs, .git, .freebuff, .agents.",
+  "gates": [
+    {
+      "name": "icons",
+      "cmd": "npm run icons",
+      "exit": 0,
+      "durationMs": 617,
+      "required": true
+    },
+    {
+      "name": "format:check",
+      "cmd": "npm run format:check",
+      "exit": 0,
+      "durationMs": 4151,
+      "required": true
+    },
+    {
+      "name": "lint",
+      "cmd": "npm run lint",
+      "exit": 0,
+      "durationMs": 6756,
+      "required": true
+    },
+    {
+      "name": "typecheck",
+      "cmd": "npm run typecheck",
+      "exit": 0,
+      "durationMs": 4143,
+      "required": true
+    },
+    {
+      "name": "unit",
+      "cmd": "npm test",
+      "exit": 0,
+      "durationMs": 64636,
+      "required": true,
+      "tests": {
+        "passed": 896,
+        "files": 94
+      }
+    },
+    {
+      "name": "test:artifact-integrity",
+      "cmd": "node scripts/test-artifact-inventory.mjs",
+      "exit": 0,
+      "durationMs": 1702,
+      "required": true
+    },
+    {
+      "name": "build",
+      "cmd": "npm run build",
+      "exit": 0,
+      "durationMs": 3379,
+      "required": true
+    },
+    {
+      "name": "verify:manifest-chrome",
+      "cmd": "node scripts/validate-manifest.mjs chrome-mv3 --target chrome",
+      "exit": 0,
+      "durationMs": 119,
+      "required": true
+    },
+    {
+      "name": "inventory:capture-chrome",
+      "cmd": "node scripts/artifact-inventory.mjs capture chrome-mv3 chrome",
+      "exit": 0,
+      "durationMs": 124,
+      "required": true
+    },
+    {
+      "name": "e2e:chromium-extension",
+      "cmd": "npx playwright test --project=chromium-extension",
+      "exit": 0,
+      "durationMs": 296224,
+      "required": true,
+      "tests": {
+        "passed": 55,
+        "failed": 0
+      }
+    },
+    {
+      "name": "inventory:check-test-chrome",
+      "cmd": "node scripts/artifact-inventory.mjs check-test chrome-mv3 chrome",
+      "exit": 0,
+      "durationMs": 189,
+      "required": true
+    },
+    {
+      "name": "build:firefox",
+      "cmd": "npm run build:firefox",
+      "exit": 0,
+      "durationMs": 3712,
+      "required": true
+    },
+    {
+      "name": "verify:manifest-firefox",
+      "cmd": "node scripts/validate-manifest.mjs firefox-mv2 --target firefox",
+      "exit": 0,
+      "durationMs": 120,
+      "required": true
+    },
+    {
+      "name": "inventory:capture-firefox",
+      "cmd": "node scripts/artifact-inventory.mjs capture firefox-mv2 firefox",
+      "exit": 0,
+      "durationMs": 160,
+      "required": true
+    },
+    {
+      "name": "e2e:firefox-smoke",
+      "cmd": "npx playwright test --project=firefox-smoke",
+      "exit": 0,
+      "durationMs": 22420,
+      "required": true,
+      "tests": {
+        "passed": 2,
+        "failed": 0
+      }
+    },
+    {
+      "name": "inventory:check-test-firefox",
+      "cmd": "node scripts/artifact-inventory.mjs check-test firefox-mv2 firefox",
+      "exit": 0,
+      "durationMs": 123,
+      "required": true
+    },
+    {
+      "name": "zip",
+      "cmd": "npm run zip",
+      "exit": 0,
+      "durationMs": 2507,
+      "required": true
+    },
+    {
+      "name": "inventory:check-zip-chrome",
+      "cmd": "node scripts/artifact-inventory.mjs check-zip block-the-slop-1.0.0-chrome.zip chrome-mv3 chrome",
+      "exit": 0,
+      "durationMs": 111,
+      "required": true
+    },
+    {
+      "name": "zip:firefox",
+      "cmd": "npm run zip:firefox",
+      "exit": 0,
+      "durationMs": 2713,
+      "required": true
+    },
+    {
+      "name": "inventory:check-zip-firefox",
+      "cmd": "node scripts/artifact-inventory.mjs check-zip block-the-slop-1.0.0-firefox.zip firefox-mv2 firefox",
+      "exit": 0,
+      "durationMs": 107,
+      "required": true
+    }
+  ],
+  "testTotals": {
+    "unitDomUi": {
+      "passed": 896,
+      "files": 94
+    },
+    "e2eChromiumExtension": {
+      "passed": 55,
+      "failed": 0
+    },
+    "e2eFirefoxSmoke": {
+      "passed": 2,
+      "failed": 0
+    },
+    "note": "parsed from the gate output of THIS run; not hardcoded"
+  },
+  "browsers": {
+    "chromium": "chromium-1243",
+    "firefox": "firefox-1543"
+  },
+  "testedBuildInventories": {
+    "chrome": "inventory/tested-build-chrome.json",
+    "firefox": "inventory/tested-build-firefox.json",
+    "note": "Captured after build+manifest validation, verified unchanged after browser tests, and used as the comparison base for packaged zips (see scripts/artifact-inventory.mjs). Hashes recorded in artifacts plus per-file sha256 inside the inventory files."
+  },
+  "artifacts": {
+    "chrome-mv3/manifest.json": {
+      "sha256": "cca6180f12807876e6683b0076538fd4f02f57ced779034003b2a7a47a5343d1",
+      "bytes": 790
+    },
+    "firefox-mv2/manifest.json": {
+      "sha256": "0c33dc12b5594e7d6a68d6cf84cfe7a7e0c0d7b7b72c722e997daa51ca8785f5",
+      "bytes": 817
+    },
+    "chrome.zip": {
+      "sha256": "ab507e85c3bc298f551dd5eba7b8212dc6387570abd6e0be5c419a1dcd5b2e2a",
+      "bytes": 166626
+    },
+    "firefox.zip": {
+      "sha256": "3563356b5225fc929bf4ab75a37e63a7783ffc12691503e2a0e5dfa108979afd",
+      "bytes": 166659
+    },
+    "sources.zip": {
+      "sha256": "64137bdb6da69fe546032f2233928b057680ce2aac0c260a3e318211a1e81aa0",
+      "bytes": 6442865
+    }
+  },
+  "evidenceBoundary": {
+    "fixture": "tests/e2e assert real visibility against .output/chrome-mv3 on fixture pages under tests/e2e/fixtures/www.youtube.com",
+    "live": "NOT recorded by this run — live youtube.com checks remain a separate manual procedure; do not cite fixture evidence as live evidence",
+    "firefoxRuntime": "UNVERIFIED — Playwright Firefox cannot load extensions; the firefox-smoke project verifies artifact integrity + real browser launch only"
+  }
+}

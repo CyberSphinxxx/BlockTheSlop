@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "capturedAt": "2026-09-27T19:54:04.186Z",
+  "target": "chrome",
+  "buildDir": "chrome-mv3",
+  "fileCount": 15,
+  "files": {
+    "assets/messaging-DLmjYKsz.css": {
+      "sha256": "998c0d621136b016a8cd933ac7ee574cdf37967dba540d50e491b55a3e800ce3",
+      "bytes": 25282
+    },
+    "background.js": {
+      "sha256": "fb503f865d55b703c89d701d3734d251cf4c89a996b66bcd040f02b50dbb80c3",
+      "bytes": 57956
+    },
+    "chunks/messaging-DKfJZYXi.js": {
+      "sha256": "06c8d8636eebebce7d43e63561cd3d54ee41ff60f47d02bc9cf8aa7b76135307",
+      "bytes": 231237
+    },
+    "chunks/onboarding-D-c1tC1z.js": {
+      "sha256": "c1ac9f86541191dd81e704c4138e9fc3f39e66846284446e0424af03b291ea1c",
+      "bytes": 12727
+    },
+    "chunks/options-Bdxcrl4p.js": {
+      "sha256": "7d50d83786f59fca745a60a3b8139da53b631a5f0c44ed5650a49eb07820e166",
+      "bytes": 84553
+    },
+    "chunks/popup-n0n1j_xE.js": {
+      "sha256": "d0e4867871ddc3a54bb591690b74ff3e041711a7c5f3d0e01e7417d670c1259a",
+      "bytes": 8132
+    },
+    "content-scripts/youtube.js": {
+      "sha256": "cc5b902789834d6bb41756fbe39ed8e3b2e3e522b32fa20d0bda96c56a8b45ce",
+      "bytes": 134591
+    },
+    "icon/128.png": {
+      "sha256": "434abc422a732f54581e79688131305e244f4b932a30d13e59f5f150987ea508",
+      "bytes": 1433
+    },
+    "icon/16.png": {
+      "sha256": "c05780a98f34c3f974c83124e651200ac673a0c1bc616c288cde22a88c69aa9f",
+      "bytes": 266
+    },
+    "icon/32.png": {
+      "sha256": "47b5772d404766efc9b46a8e5db5f4df5a1be9e55cbc7012c5b4de7a7edec38c",
+      "bytes": 460
+    },
+    "icon/48.png": {
+      "sha256": "018356dfaeafed2c4cc9a7506209e183aaad7ec8eab25e8a93fe81b0302039f8",
+      "bytes": 605
+    },
+    "manifest.json": {
+      "sha256": "cca6180f12807876e6683b0076538fd4f02f57ced779034003b2a7a47a5343d1",
+      "bytes": 790
+    },
+    "onboarding.html": {
+      "sha256": "e31805ac3b5208687d83a951ef06b51954bc598ada7343394cf55e5317c1cc5b",
+      "bytes": 491
+    },
+    "options.html": {
+      "sha256": "6eef521fc29ed83d2d35348486d91809bda512e9fec21e318ebae85aadf61901",
+      "bytes": 491
+    },
+    "popup.html": {
+      "sha256": "316a44f2c65b1ba7891045b5b424829d74b4cff04eeeee2024f3fd85e27538b5",
+      "bytes": 476
+    }
+  }
+}

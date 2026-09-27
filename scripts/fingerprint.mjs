@@ -22,6 +22,7 @@ const EX = new Set([
   'block-the-slop-v4-loop-kit',
   'block-the-slop-v5-loop-kit',
   'block-the-slop-v6-loop-kit',
+  'block-the-slop-v7',
 ]);
 
 function collect(dir, out = []) {

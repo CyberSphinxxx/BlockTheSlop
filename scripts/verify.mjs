@@ -129,6 +129,7 @@ const EXCLUDED_DIRS = new Set([
   'block-the-slop-v4-loop-kit',
   'block-the-slop-v5-loop-kit',
   'block-the-slop-v6-loop-kit',
+  'block-the-slop-v7',
 ]);
 
 function collectFiles(dir, base = root, out = []) {
@@ -308,7 +309,7 @@ function writeEvidence(gatesPassed, failed, failureNote) {
     generatedAt: new Date().toISOString(),
     sourceFingerprint: fingerprint,
     fingerprintRule:
-      'SHA-256 over sorted repo file names + contents, excluding .output, node_modules, test-results, kit dirs, .git, .freebuff, .agents.',
+      'SHA-256 over sorted repo file names + contents, excluding .output, node_modules, test-results, kit/evidence dirs, .git, .freebuff, .agents.',
     gates: gatesPassed,
     testTotals: {
       unitDomUi: unitTotals,
