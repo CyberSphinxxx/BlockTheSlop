@@ -3,6 +3,7 @@ import type { UserSettings } from '@/domain/settings';
 import type { NormalizedVideoCandidate } from '@/domain/video';
 import { ATTR_FINGERPRINT, ATTR_STATE, ATTR_VIDEO_ID, SELECTORS } from '@/youtube/selectors';
 import { parseDiscovered, cardKindOf } from '@/youtube/discover';
+import { identityOf } from '@/domain/video';
 import { shortHash } from '@/storage/fingerprint';
 import { PRESENTATION_CSS } from './style';
 
@@ -138,6 +139,10 @@ export function markCollapseSlot(card: Element): void {
     if (SLOT_WRAPPER_SELECTORS.some((s) => matchesSelector(ancestor!, s))) {
       if (wrapsSingleCard(ancestor, card)) {
         ancestor.setAttribute(ATTR_SLOT_COLLAPSE, SLOT_COLLAPSE_VALUE);
+        // §9D: remember WHICH slot was marked for this card so restore can
+        // clear an abandoned wrapper later (card moved out / recycled away)
+        // without a document-wide scan. WeakMap: GC when the card dies.
+        slotByCard.set(card, ancestor);
       }
       // First card-wrapper candidate decides: a multi-card wrapper (shelf)
       // means higher ancestors are even wider — fall back to the card itself.
@@ -147,11 +152,62 @@ export function markCollapseSlot(card: Element): void {
   }
 }
 
-/** Remove every slot mark that covers `card` (restore/stale-state cleanup). */
+/** Slot wrapper each card last marked (see markCollapseSlot). */
+const slotByCard = new WeakMap<Element, Element>();
+
+/**
+ * Audit Finding 1, scoped (§9D): clear the slot mark RECORDED for this card
+ * when that wrapper no longer wraps a collapsed card — the card may have
+ * moved out or been recycled away, leaving the mark to hide visible content.
+ * O(1) per card: no document-wide scan on the per-card path (the batch
+ * finalizer runs the full orphaned-mark sweep instead).
+ */
+function clearRecordedSlotFor(card: Element): void {
+  const slot = slotByCard.get(card);
+  if (slot === undefined) return;
+  slotByCard.delete(card);
+  if (
+    slot.getAttribute(ATTR_SLOT_COLLAPSE) === SLOT_COLLAPSE_VALUE &&
+    slot.querySelector('[data-bts-collapse]') === null
+  ) {
+    slot.removeAttribute(ATTR_SLOT_COLLAPSE);
+  }
+}
+
+/**
+ * Remove every slot mark that covers `card` (restore/stale-state cleanup).
+ * §9D: markCollapseSlot can only mark ancestors within 6 levels, so a bounded
+ * ancestor walk finds every mark covering this card — a document-wide
+ * querySelectorAll here made batch presentation O(N²) once N marks existed.
+ */
 function clearCollapseSlotsFor(card: Element): void {
+  const recorded = slotByCard.get(card);
+  if (recorded !== undefined && (recorded === card || recorded.contains(card))) {
+    recorded.removeAttribute(ATTR_SLOT_COLLAPSE);
+  }
+  let ancestor = card.parentElement;
+  for (let depth = 0; ancestor !== null && depth < 6; depth++) {
+    if (ancestor.getAttribute(ATTR_SLOT_COLLAPSE) === SLOT_COLLAPSE_VALUE) {
+      ancestor.removeAttribute(ATTR_SLOT_COLLAPSE);
+    }
+    ancestor = ancestor.parentElement;
+  }
+}
+
+/**
+ * Audit Finding 1: clear slot marks that no longer wrap a collapsed card.
+ * YouTube recycles slot wrappers wholesale, so a marked wrapper can come to
+ * hold content we never decided on; leaving the mark would hide VISIBLE
+ * content with no extension state to explain it. A mark is orphaned when no
+ * `[data-bts-collapse]` card remains inside it; marks still legally wrapping
+ * their own hidden card are never touched (scoped restores stay scoped).
+ */
+export function clearOrphanedCollapseSlots(root: ParentNode = document): void {
   const selector = `[${ATTR_SLOT_COLLAPSE}="${SLOT_COLLAPSE_VALUE}"]`;
-  for (const slot of document.querySelectorAll(selector)) {
-    if (slot === card || slot.contains(card)) slot.removeAttribute(ATTR_SLOT_COLLAPSE);
+  for (const slot of root.querySelectorAll(selector)) {
+    if (slot.querySelector('[data-bts-collapse]') === null) {
+      slot.removeAttribute(ATTR_SLOT_COLLAPSE);
+    }
   }
 }
 
@@ -167,7 +223,16 @@ function removeStaleState(element: Element): void {
   element.removeAttribute('data-bts-collapse');
   // V7-02: a slot mark from a previous collapse must never outlive the
   // decision that created it (warn-after-hide would keep the card hidden).
+  // The ancestor walk clears marks covering THIS card; the recorded-slot
+  // check (audit F1, scoped) additionally clears a wrapper this card marked
+  // but has since LEFT (moved out / recycled away). The document-wide
+  // orphaned-mark sweep is deliberately NOT run per card: hiding or
+  // restoring a batch of N cards must not perform N whole-document scans
+  // (§9D — that was O(N²)). Batch boundaries run it once
+  // (orchestrator.processBatch finalizer), and cleanup paths
+  // (cleanupAll/restoreRecursively) keep their full sweeps.
   clearCollapseSlotsFor(element);
+  clearRecordedSlotFor(element);
 }
 
 /** Restore a card to its untouched state. Idempotent. */
@@ -191,19 +256,108 @@ function anchorsWithOurInlineStyles(element: Element): Element[] {
 }
 
 /**
- * V7-04: true when the marked card still holds the SAME content it was hidden
- * for. `signature` is the orchestrator's identityOf(candidate) string captured
- * when the decision was applied; an empty signature (identity was unknown at
- * hide time) is treated as matching — nothing stronger to validate against.
- * Used by session-recovery/popup restore actions so a recycled element can
- * never be revealed as if it were the hidden video.
+ * Audit Finding 3: how a recovery restore may act on `element` for a saved
+ * entry whose identity is `signature` (the orchestrator's identityOf string
+ * captured when the decision was applied).
+ *
+ * - 'verified': the element is ours (stamped), its stamp still describes its
+ *   CURRENT content, AND the saved identity parses and describes exactly that
+ *   same content. Only this mode grants the identity-specific show-once
+ *   override.
+ * - 'unverified': the element is ours but its identity cannot be proven to
+ *   match the entry (empty or malformed saved identity, or a recycled card
+ *   whose stamp is stale). A plain restore is allowed — never the override —
+ *   so the user is un-wedged while the content is re-evaluated fresh.
+ * - 'foreign': the element carries no evidence stamp of ours at all; nothing
+ *   about it can be verified, so a restore action must not touch it.
+ */
+export type IdentityRestoreMode = 'verified' | 'unverified' | 'foreign';
+
+/**
+ * Rebuild a candidate projection from an identityOf() string so the SAVED
+ * identity can be compared against a freshly parsed card. Returns null for
+ * anything that is not a well-formed identityOf array (malformed signatures
+ * never validate). Only the identityOf slot types are trusted; values that
+ * cannot describe an identity make the signature malformed.
+ */
+function savedCandidateFromIdentity(identity: string): NormalizedVideoCandidate | null {
+  try {
+    const parsed: unknown = JSON.parse(identity);
+    if (!Array.isArray(parsed) || parsed.length < 10) return null;
+    const [
+      videoId,
+      title,
+      description,
+      channelId,
+      handle,
+      displayName,
+      disclosure,
+      badgeCount,
+      isShort,
+      cardKind,
+    ] = parsed as unknown[];
+    if (typeof title !== 'string' || title.length === 0) return null;
+    if (disclosure !== undefined && typeof disclosure !== 'boolean') return null;
+    if (badgeCount !== undefined && typeof badgeCount !== 'number') return null;
+    if (isShort !== undefined && typeof isShort !== 'boolean') return null;
+    // Audit RC blocker B: the saved identity encodes officialDisclosure as a
+    // boolean, so a card WITH YouTube's altered/synthetic label must be
+    // reconstructed WITH officialDisclosure present — omitting it made
+    // identityOf(saved) ≠ identityOf(current) for exactly those cards and
+    // downgraded their verified restore to a plain (non-show-once) one. The
+    // reconstruction must cover EVERY identityOf slot, never partially.
+    return {
+      ...(typeof videoId === 'string' ? { videoId } : {}),
+      title,
+      ...(typeof description === 'string' ? { description } : {}),
+      ...(disclosure === true ? { officialDisclosure: { present: true } } : {}),
+      channel: {
+        ...(typeof channelId === 'string' ? { channelId } : {}),
+        ...(typeof handle === 'string' ? { handle } : {}),
+        ...(typeof displayName === 'string' ? { displayName } : {}),
+      },
+      surface: 'unknown',
+      cardKind: cardKind === 'shorts-video' ? 'shorts-video' : 'video',
+      badges: new Array(typeof badgeCount === 'number' ? badgeCount : 0),
+      ariaLabels: [],
+      metadataText: [],
+      isShort: isShort === true,
+      observedAt: 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function identityRestoreMode(element: Element, signature: string): IdentityRestoreMode {
+  // The element must still be OURS: the evidence stamp proves this node
+  // carries the decision we made. A stranger card is never restorable.
+  const stamped = element.getAttribute(ATTR_FINGERPRINT);
+  if (stamped === null) return 'foreign';
+  // Re-parse the CURRENT content (recycled cards change identity).
+  const current = parseDiscovered({ element, kind: cardKindOf(element) }, 'unknown', Date.now());
+  if (contentFingerprintOf(current) !== stamped) return 'unverified';
+  // Audit Finding 3: an identity-specific restore additionally requires the
+  // SAVED identity to describe exactly this content. An empty signature
+  // (identity unknown at hide time) or a malformed one can never be proven
+  // to describe this card, so they never grant the override.
+  if (signature === '') return 'unverified';
+  const saved = savedCandidateFromIdentity(signature);
+  if (saved === null) return 'unverified';
+  return identityOf(saved) === identityOf(current) ? 'verified' : 'unverified';
+}
+
+/**
+ * V7-04 (as tightened by audit Finding 3): true only when the element is
+ * ours, its stamp still describes its current content, AND the saved
+ * identity describes the same video as the freshly parsed card. Used by
+ * session-recovery/popup restore actions so a recycled element — or a stale
+ * entry for a DIFFERENT video — can never be revealed as if it were the
+ * hidden video. Empty/malformed signatures return false (plain-restore
+ * territory, see identityRestoreMode).
  */
 export function identityStillMatches(element: Element, signature: string): boolean {
-  if (signature === '') return true;
-  const stamped = element.getAttribute(ATTR_FINGERPRINT);
-  if (stamped === null) return false;
-  const current = parseDiscovered({ element, kind: cardKindOf(element) }, 'unknown', Date.now());
-  return contentFingerprintOf(current) === stamped;
+  return identityRestoreMode(element, signature) === 'verified';
 }
 
 /**
