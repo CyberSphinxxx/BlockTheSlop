@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { applyRuleMutation, defaultRules, getRuleIndex, type UserRules } from '@/domain/rules';
 import { decide } from '@/policy/decide';
 import { defaultSettings, type UserSettings } from '@/domain/settings';
@@ -30,6 +30,12 @@ function rulesWith10k(): UserRules {
 }
 
 describe('V7-09: performance at 10k phrase rules', () => {
+  // RC note: these budgets measure REAL work (~4.5s locally) and sat just
+  // under Vitest's 5s default, so parallel full-suite runs intermittently
+  // exceeded the framework timeout (not the assertion budgets). Give the
+  // framework headroom without weakening any asserted budget.
+  vi.setConfig({ testTimeout: 60_000 });
+
   it('builds the matcher index once within a bounded budget', () => {
     const rules = rulesWith10k();
     expect(rules.blockedPhraseRules).toHaveLength(TEN_K / 2);
