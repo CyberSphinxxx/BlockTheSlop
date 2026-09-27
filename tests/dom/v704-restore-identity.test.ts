@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyDecision, ensureStyles, identityStillMatches } from '@/presentation/apply-decision';
+import {
+  applyDecision,
+  ensureStyles,
+  identityRestoreMode,
+  identityStillMatches,
+} from '@/presentation/apply-decision';
 import { setPresentationCallbacks } from '@/presentation/apply-decision';
 import { defaultSettings, type UserSettings } from '@/domain/settings';
 import { sessionRecovery } from '@/presentation/session-recovery';
@@ -81,9 +86,14 @@ describe('V7-04: identityStillMatches', () => {
     expect(identityStillMatches(card, identityOf(cand))).toBe(false);
   });
 
-  it('true for an unknown signature (empty string) — nothing to validate against', () => {
+  it('empty signature (unknown saved identity) never grants the identity override (audit F3)', () => {
     const card = cardWith(RECYCLED_NODE_BEFORE_HTML);
-    expect(identityStillMatches(card, '')).toBe(true);
+    applyDecision(card, decision(), parseOf(card), collapseSettings());
+    // Our stamped card with current content: plain restore is allowed via the
+    // 'unverified' mode, but identityStillMatches is the OVERRIDE gate and an
+    // unknown saved identity cannot prove the content is the hidden video.
+    expect(identityRestoreMode(card, '')).toBe('unverified');
+    expect(identityStillMatches(card, '')).toBe(false);
   });
 
   it('false for a card we never marked', () => {
@@ -99,9 +109,9 @@ describe('V7-04: session restore validates identity before revealing', () => {
     applyDecision(card, decision(), cand, collapseSettings());
     sessionRecovery.record(card, cand, decision(), identityOf(cand));
 
-    const onRestore = vi.fn();
+    const onRestore = vi.fn(() => true);
     const restored = sessionRecovery.restore(sessionRecovery.list()[0]!.id, onRestore);
-    expect(restored).toBe(true);
+    expect(restored).toBe('restored');
     expect(onRestore).toHaveBeenCalledWith(card, identityOf(cand));
   });
 
