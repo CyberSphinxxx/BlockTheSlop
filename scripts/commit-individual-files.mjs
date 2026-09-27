@@ -75,8 +75,7 @@ function inferCommitMessage(filePath) {
     return 'chore(scripts): implement release verification and gate validation script';
   if (normalized === 'scripts/commit-individual-files.mjs')
     return 'chore(scripts): add automated one-by-one git commit runner script';
-  if (normalized === 'scripts/fingerprint.mjs')
-    return 'chore(scripts): add source tree fingerprint calculator script';
+  if (normalized.startsWith('scripts/')) return `chore(scripts): implement ${baseName} script`;
 
   // Assets & Visual Baselines
   if (normalized.startsWith('public/icon/'))
