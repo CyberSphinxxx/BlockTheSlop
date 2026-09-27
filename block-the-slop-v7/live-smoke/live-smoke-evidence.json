@@ -1,0 +1,88 @@
+{
+  "generatedAt": "2026-09-27T19:15:33.640Z",
+  "extensionBuild": {
+    "manifest": "cca6180f12807876e6683b0076538fd4f02f57ced779034003b2a7a47a5343d1"
+  },
+  "chromeVersion": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+  "observations": [
+    {
+      "surface": "home",
+      "url": "https://www.youtube.com/",
+      "notes": "hidden=0 placeholders=0 warn=0 notice=\"\"",
+      "at": "2026-09-27T19:14:06.500Z"
+    },
+    {
+      "surface": "home",
+      "url": "https://www.youtube.com/",
+      "notes": "no on-page notice (nothing hidden on this load)",
+      "at": "2026-09-27T19:14:07.988Z"
+    },
+    {
+      "surface": "search",
+      "url": "https://www.youtube.com/results?search_query=lofi+study+music",
+      "notes": "hidden=0 placeholders=0 warn=0",
+      "at": "2026-09-27T19:14:16.230Z"
+    },
+    {
+      "surface": "search:ai-generated",
+      "url": "https://www.youtube.com/results?search_query=ai+generated+video",
+      "notes": "hidden=2 placeholders=0 warn=1",
+      "at": "2026-09-27T19:14:29.198Z"
+    },
+    {
+      "surface": "search:ai-generated",
+      "url": "https://www.youtube.com/results?search_query=ai+generated+video",
+      "notes": "after scroll: hidden=6 chips=0",
+      "at": "2026-09-27T19:14:40.661Z"
+    },
+    {
+      "surface": "subscriptions",
+      "url": "https://www.youtube.com/feed/subscriptions",
+      "notes": "hidden=0 (shorts shelf usually present here)",
+      "at": "2026-09-27T19:14:50.361Z"
+    },
+    {
+      "surface": "watch",
+      "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+      "notes": "sidebar hidden=0 placeholders=0",
+      "at": "2026-09-27T19:15:02.006Z"
+    },
+    {
+      "surface": "manual-block",
+      "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+      "notes": "popup storage rules updated (blocked count=1)",
+      "at": "2026-09-27T19:15:05.130Z"
+    },
+    {
+      "surface": "manual-block",
+      "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "notes": "blocked video page opened — extension does not block watch pages themselves (filtering is for discovery surfaces); verify no errors",
+      "at": "2026-09-27T19:15:12.117Z"
+    },
+    {
+      "surface": "disabled",
+      "url": "https://www.youtube.com/",
+      "notes": "filtering OFF: hidden=0 (must be 0)",
+      "at": "2026-09-27T19:15:20.938Z"
+    },
+    {
+      "surface": "reload",
+      "url": "https://www.youtube.com/",
+      "notes": "after reload (still disabled): hidden=0",
+      "at": "2026-09-27T19:15:28.416Z"
+    },
+    {
+      "surface": "re-enabled",
+      "url": "https://www.youtube.com/",
+      "notes": "filtering back ON: hidden=0 notice=\"\"",
+      "at": "2026-09-27T19:15:33.571Z"
+    }
+  ],
+  "consoleErrors": {
+    "page": [
+      "Failed to load resource: the server responded with a status of 401 ()"
+    ],
+    "extension": []
+  },
+  "evidenceBoundary": "LIVE YouTube evidence (logged out, temporary profile). Establishes real-surface behavior and stability, NOT detector accuracy or full surface compatibility."
+}

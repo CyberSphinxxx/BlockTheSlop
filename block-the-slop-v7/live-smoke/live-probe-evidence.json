@@ -1,0 +1,46 @@
+{
+  "generatedAt": "2026-09-27T19:13:47.247Z",
+  "extensionBuild": {
+    "manifest": "cca6180f12807876e6683b0076538fd4f02f57ced779034003b2a7a47a5343d1"
+  },
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+  "results": [
+    {
+      "check": "extension-loaded",
+      "passed": true,
+      "detail": "id=nlbfnainbbfggkaimomifgejmgokgdoe",
+      "at": "2026-09-27T19:13:19.683Z"
+    },
+    {
+      "check": "hidden-cards-zero-layout",
+      "passed": true,
+      "detail": "6 sampled hidden cards, 6 at display:none + zero height",
+      "at": "2026-09-27T19:13:31.736Z"
+    },
+    {
+      "check": "extension-stylesheet-present",
+      "passed": true,
+      "detail": "{\"present\":true,\"bytes\":12893,\"rules\":73}",
+      "at": "2026-09-27T19:13:31.748Z"
+    },
+    {
+      "check": "no-extension-ui-over-player",
+      "passed": true,
+      "detail": "{\"checked\":true,\"overlapping\":0,\"sample\":[]}",
+      "at": "2026-09-27T19:13:31.753Z"
+    },
+    {
+      "check": "live-restore-survives-rescan",
+      "passed": true,
+      "detail": "before={\"videoId\":\"hbeLlO2tPNg\",\"display\":\"none\",\"h\":0} restored={\"restored\":true,\"matched\":true} afterRestore={\"found\":true,\"collapsed\":false,\"display\":\"inline-block\",\"h\":400} afterRescan={\"found\":true,\"collapsed\":false,\"display\":\"inline-block\",\"h\":400}",
+      "at": "2026-09-27T19:13:37.937Z"
+    },
+    {
+      "check": "watch-no-notice-over-player",
+      "passed": true,
+      "detail": "{\"checked\":true,\"overlapping\":0}",
+      "at": "2026-09-27T19:13:47.246Z"
+    }
+  ],
+  "evidenceBoundary": "LIVE YouTube measured evidence (logged out, temporary profile): computed styles + real geometry on real pages. Establishes measured rendering behavior, NOT detector accuracy."
+}

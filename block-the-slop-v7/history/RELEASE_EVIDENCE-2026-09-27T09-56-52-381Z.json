@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 7,
+  "runId": "verify-2026-09-27T09-56-52-381Z",
+  "generatedAt": "2026-09-27T09:56:52.382Z",
+  "sourceFingerprint": "1f6114f58f1a850ee37aa0139850c678b08d1fad144bb507b863883e35467e4d",
+  "fingerprintRule": "SHA-256 over sorted repo file names + contents, excluding .output, node_modules, test-results, kit dirs, .git, .freebuff, .agents.",
+  "gates": [
+    {
+      "name": "icons",
+      "cmd": "npm run icons",
+      "exit": 0,
+      "durationMs": 951,
+      "required": true
+    },
+    {
+      "name": "format:check",
+      "cmd": "npm run format:check",
+      "exit": 0,
+      "durationMs": 9616,
+      "required": true
+    },
+    {
+      "name": "lint",
+      "cmd": "npm run lint",
+      "exit": 1,
+      "durationMs": 54413,
+      "required": true
+    }
+  ],
+  "testTotals": {
+    "unitDomUi": null,
+    "e2eChromiumExtension": null,
+    "e2eFirefoxSmoke": null,
+    "note": "parsed from the gate output of THIS run; not hardcoded"
+  },
+  "browsers": {
+    "chromium": "chromium-1243",
+    "firefox": null
+  },
+  "testedBuildInventories": {
+    "chrome": "inventory/tested-build-chrome.json",
+    "firefox": "inventory/tested-build-firefox.json",
+    "note": "Captured after build+manifest validation, verified unchanged after browser tests, and used as the comparison base for packaged zips (see scripts/artifact-inventory.mjs). Hashes recorded in artifacts plus per-file sha256 inside the inventory files."
+  },
+  "artifacts": {
+    "chrome-mv3/manifest.json": {
+      "sha256": "cca6180f12807876e6683b0076538fd4f02f57ced779034003b2a7a47a5343d1",
+      "bytes": 790
+    },
+    "firefox-mv2/manifest.json": null,
+    "chrome.zip": null,
+    "firefox.zip": null,
+    "sources.zip": null
+  },
+  "evidenceBoundary": {
+    "fixture": "tests/e2e assert real visibility against .output/chrome-mv3 on fixture pages under tests/e2e/fixtures/www.youtube.com",
+    "live": "NOT recorded by this run — live youtube.com checks remain a separate manual procedure; do not cite fixture evidence as live evidence",
+    "firefoxRuntime": "UNVERIFIED — Playwright Firefox cannot load extensions; the firefox-smoke project verifies artifact integrity + real browser launch only"
+  },
+  "failed": true,
+  "failureNote": "gate lint exited 1"
+}
