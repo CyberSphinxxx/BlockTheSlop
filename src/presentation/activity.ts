@@ -240,7 +240,13 @@ export class HideActivityNotice {
       restoreBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (this.onRestore) {
-          sessionRecovery.restore(item.id, this.onRestore);
+          // RC2 issue 2: the store RETAINS the entry on failure, so the row
+          // stays listed and the user can retry; only 'restored' removes it.
+          const outcome = sessionRecovery.restore(item.id, this.onRestore);
+          if (outcome === 'failed') {
+            restoreBtn.textContent = 'Retry';
+            restoreBtn.setAttribute('aria-label', `Restore failed — retry restoring ${item.title}`);
+          }
           this.scheduleUpdate();
         }
       });
