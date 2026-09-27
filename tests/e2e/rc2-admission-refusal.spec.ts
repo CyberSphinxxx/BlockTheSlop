@@ -109,12 +109,31 @@ test.describe('RC2 issue 1: production admission wiring (loaded extension)', () 
 
     await harness.page.goto('https://www.youtube.com/rc2wire');
     // Capacity pressure happened: the oldest ten were evicted (revealed).
+    // GATE ON THE FINAL STEADY STATE: exactly 100 collapsed cards, the
+    // evicted oldest visible with real geometry, AND the newest card hidden.
+    // (A display-only poll also passes on an unprocessed page under load —
+    // an uncollapsed card is visible too — so every later assertion raced
+    // the batch. Reaching this state requires the batch to be COMPLETE.)
     await expect
-      .poll(async () => (await boxOf(harness.page, '[data-testid="watch-0"]')).display, {
-        timeout: 30_000,
-      })
-      .not.toBe('none');
-    expect((await boxOf(harness.page, '[data-testid="watch-0"]')).h).toBeGreaterThan(40);
+      .poll(
+        async () => {
+          const state = await harness.page.evaluate(() => ({
+            collapsed: document.querySelectorAll('[data-bts-collapse]').length,
+            newest: getComputedStyle(
+              document.querySelector('[data-testid="watch-109"]') ?? document.body,
+            ).display,
+          }));
+          const box = await boxOf(harness.page, '[data-testid="watch-0"]');
+          return (
+            state.collapsed === 100 &&
+            state.newest === 'none' &&
+            box.display !== 'none' &&
+            box.h > 40
+          );
+        },
+        { timeout: 90_000 },
+      )
+      .toBe(true);
 
     // INVARIANT: routes come from the popup relay; hidden IDs are measured in
     // the YouTube tab itself (two contexts, then joined in Node).
