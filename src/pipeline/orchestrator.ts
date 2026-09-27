@@ -912,82 +912,107 @@ export class FilterOrchestrator {
       }
     }
 
-    /** RC2 issue 1: release the reservation when the hide aborts after reserve. */
-    const releaseReservation = (): void => {
-      this.onHideRecoveryRelease?.(element);
-    };
-    if (generation !== this.generation) {
-      releaseReservation();
-      return;
-    }
-    if (!element.isConnected) {
-      releaseReservation();
-      return;
-    }
+    /**
+     * V7 audit — single reservation OWNERSHIP token for the rest of this
+     * hide. True from reserve() until the reservation is either COMMITTED
+     * (record() consumed it inside onDecisionApplied) or NOT ours anymore;
+     * the try/finally below releases it on EVERY other exit — return,
+     * throw, or cancellation. Closure-local, so overlapping work for the
+     * same element (a stale generation's invocation) can never release or
+     * commit another operation's slot: releasing is element-keyed in the
+     * store, so a late release after someone else's commit is a no-op.
+     */
+    let reservationOwned = decision.action === 'hide';
+    try {
+      if (generation !== this.generation) return;
+      if (!element.isConnected) return;
 
-    // N02 blocker-2: the durable write was an AWAIT — generation, settings,
-    // connectivity and the card's identity may ALL have changed while it was
-    // in flight. Revalidate everything immediately before presentation; the
-    // committed history row is retained as the recovery record for A, but A's
-    // hide is never applied to B / a disabled page / a stale generation.
-    if (generation !== this.generation) return;
-    if (!element.isConnected) return;
-    const finalSettings = await this.deps.getSettings();
-    if (!finalSettings.enabled) {
-      element.removeAttribute('data-bts-collapse');
-      releaseReservation();
-      return;
-    }
-    const finalSurfaceAllowed = surface === 'unknown' || finalSettings.surfaces[surface] !== false;
-    if (!finalSurfaceAllowed) {
-      element.removeAttribute('data-bts-collapse');
-      releaseReservation();
-      return;
-    }
-    const currentSignatureAfterCommit = identityOf(parseDiscovered(card, surface, Date.now()));
-    if (currentSignatureAfterCommit !== signature) {
-      // Identity changed across the await: the decision is stale. Release
-      // the reservation (the recycled element is no longer the hide's owner).
-      releaseReservation();
-      return;
-    }
-    if (!element.isConnected) {
-      releaseReservation();
-      return;
-    }
-    if (!element.isConnected) return;
-    const overrideAtCommit = showOnceOverrides.get(element);
-    if (
-      overrideAtCommit !== undefined &&
-      (overrideAtCommit === currentSignatureAfterCommit || overrideAtCommit === '')
-    )
-      return;
+      // N02 blocker-2: the durable write was an AWAIT — generation, settings,
+      // connectivity and the card's identity may ALL have changed while it
+      // was in flight. Revalidate everything immediately before presentation;
+      // the committed history row is retained as the recovery record for A,
+      // but A's hide is never applied to B / a disabled page / a stale
+      // generation.
+      let finalSettings: UserSettings;
+      try {
+        finalSettings = await this.deps.getSettings();
+      } catch (error) {
+        // V7 audit: a settings-read failure must FAIL OPEN — the card stays
+        // visible, the reservation is released by the finally below, and the
+        // error is logged locally instead of escaping as an unhandled
+        // rejection (processBatch callers do not await it). Existing valid
+        // recovery records are untouched.
+        logger.warn('final settings read failed; hide aborted (fail open)', error);
+        element.removeAttribute('data-bts-collapse');
+        return;
+      }
+      if (!finalSettings.enabled) {
+        element.removeAttribute('data-bts-collapse');
+        return;
+      }
+      const finalSurfaceAllowed =
+        surface === 'unknown' || finalSettings.surfaces[surface] !== false;
+      if (!finalSurfaceAllowed) {
+        element.removeAttribute('data-bts-collapse');
+        return;
+      }
+      const currentSignatureAfterCommit = identityOf(parseDiscovered(card, surface, Date.now()));
+      if (currentSignatureAfterCommit !== signature) {
+        // Identity changed across the await: the decision is stale. The
+        // finally below releases the reservation — the recycled element is
+        // no longer the hide's owner.
+        return;
+      }
+      if (!element.isConnected) return;
+      const overrideAtCommit = showOnceOverrides.get(element);
+      if (
+        overrideAtCommit !== undefined &&
+        (overrideAtCommit === currentSignatureAfterCommit || overrideAtCommit === '')
+      )
+        return;
+      // Freshness after EVERY await (V7 audit): the final settings read was
+      // an await too — a generation bump (navigation/stop/disable) while it
+      // was in flight must cancel this stale hide before any DOM mutation.
+      if (generation !== this.generation) {
+        element.removeAttribute('data-bts-collapse');
+        return;
+      }
 
-    applyDecision(element, decision, candidate, finalSettings);
-    this.onDecisionApplied?.(element, decision, candidate, signature);
+      applyDecision(element, decision, candidate, finalSettings);
+      this.onDecisionApplied?.(element, decision, candidate, signature);
+      // Committed: record() consumed the element's reservation (or this was
+      // a warn/allow, which never held one). The finally below must now be a
+      // no-op — releasing a committed record's slot is contractually wrong
+      // even though the store tolerates it.
+      reservationOwned = false;
 
-    if (
-      finalSettings.collectLocalStats &&
-      (decision.action === 'hide' || decision.action === 'warn')
-    ) {
-      const statKey = candidate.videoId ?? signature;
-      if (!this.countedStatsOnPage.has(statKey)) {
-        this.countedStatsOnPage.add(statKey);
-        await this.deps.applyStats({
-          ...(decision.action === 'hide' ? { hidden: 1 } : {}),
-          ...(decision.action === 'warn' ? { warned: 1 } : {}),
-        });
-        // V6-11: the durable day-bucketed observation is fire-and-forget:
-        // a stats failure must never affect presentation (it already happened
-        // above) or block the batch.
-        this.deps
-          .recordDailyStat?.({
-            outcome: decision.action,
-            videoId: candidate.videoId,
-            signature,
-            observedAt: candidate.observedAt,
-          })
-          .catch(() => undefined);
+      if (
+        finalSettings.collectLocalStats &&
+        (decision.action === 'hide' || decision.action === 'warn')
+      ) {
+        const statKey = candidate.videoId ?? signature;
+        if (!this.countedStatsOnPage.has(statKey)) {
+          this.countedStatsOnPage.add(statKey);
+          await this.deps.applyStats({
+            ...(decision.action === 'hide' ? { hidden: 1 } : {}),
+            ...(decision.action === 'warn' ? { warned: 1 } : {}),
+          });
+          // V6-11: the durable day-bucketed observation is fire-and-forget:
+          // a stats failure must never affect presentation (it already
+          // happened above) or block the batch.
+          this.deps
+            .recordDailyStat?.({
+              outcome: decision.action,
+              videoId: candidate.videoId,
+              signature,
+              observedAt: candidate.observedAt,
+            })
+            .catch(() => undefined);
+        }
+      }
+    } finally {
+      if (reservationOwned) {
+        this.onHideRecoveryRelease?.(element);
       }
     }
   }
