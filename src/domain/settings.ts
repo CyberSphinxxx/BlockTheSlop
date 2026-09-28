@@ -19,8 +19,8 @@ export type DisplayMode = 'placeholder' | 'collapse';
 export type ProcessingPreset = 'battery' | 'balanced' | 'quality';
 /** Placeholder text density on hidden cards (CFG-10). */
 export type Density = 'comfortable' | 'compact';
-/** Color scheme for extension-owned pages (CFG-10); 'system' follows the OS. */
-export type Theme = 'system' | 'light' | 'dark';
+/** Color scheme for extension-owned pages; 'system' follows the OS. */
+export type Theme = 'system' | 'specimen-light' | 'specimen-dark' | 'light' | 'dark';
 
 /**
  * V6-10: on-page activity chip placement. 'off' is a real honored choice —
@@ -226,7 +226,7 @@ const FILTER_MODES: readonly FilterMode[] = ['safe', 'balanced', 'strict', 'aggr
 const CATEGORY_ACTIONS: readonly CategoryAction[] = ['allow', 'warn', 'hide', 'inherit'];
 const PROCESSING_PRESETS: readonly ProcessingPreset[] = ['battery', 'balanced', 'quality'];
 const DENSITIES: readonly Density[] = ['comfortable', 'compact'];
-const THEMES: readonly Theme[] = ['system', 'light', 'dark'];
+const THEMES: readonly Theme[] = ['system', 'specimen-light', 'specimen-dark', 'light', 'dark'];
 const ACTIVITY_POSITION_SET: ReadonlySet<string> = new Set([
   'off',
   'top-left',

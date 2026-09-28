@@ -37,6 +37,7 @@ import { MissReviewSection } from './MissReviewSection';
 import { CompetitorImportSection } from './CompetitorImportSection';
 import { PhraseEditor } from './PhraseEditor';
 import { formatDecisionReason } from '@/presentation/activity';
+import { DatePicker } from '@/ui/components/DatePicker';
 
 /**
  * Map an imported legacy review record to a durable summary. Deterministic
@@ -82,18 +83,45 @@ type Tab =
   | 'privacy'
   | 'about';
 
-const TABS: readonly { id: Tab; label: string }[] = [
-  { id: 'general', label: 'General' },
-  { id: 'filtering', label: 'Filtering' },
-  { id: 'categories', label: 'Categories' },
-  { id: 'allowed', label: 'Allowed content' },
-  { id: 'blocked', label: 'Blocked content' },
-  { id: 'review', label: 'Review history' },
-  { id: 'stats', label: 'Statistics' },
-  { id: 'data', label: 'Import/export' },
-  { id: 'privacy', label: 'Privacy' },
-  { id: 'about', label: 'About' },
+interface TabGroup {
+  name: string;
+  tabs: readonly { id: Tab; label: string }[];
+}
+
+const TAB_GROUPS: readonly TabGroup[] = [
+  {
+    name: 'Configuration',
+    tabs: [
+      { id: 'general', label: 'General' },
+      { id: 'filtering', label: 'Filtering' },
+      { id: 'categories', label: 'Categories' },
+    ],
+  },
+  {
+    name: 'Rules',
+    tabs: [
+      { id: 'allowed', label: 'Allowed content' },
+      { id: 'blocked', label: 'Blocked content' },
+    ],
+  },
+  {
+    name: 'Activity',
+    tabs: [
+      { id: 'review', label: 'Review history' },
+      { id: 'stats', label: 'Statistics' },
+    ],
+  },
+  {
+    name: 'System',
+    tabs: [
+      { id: 'data', label: 'Import/export' },
+      { id: 'privacy', label: 'Privacy' },
+      { id: 'about', label: 'About' },
+    ],
+  },
 ];
+
+export const TABS: readonly { id: Tab; label: string }[] = TAB_GROUPS.flatMap((g) => g.tabs);
 
 const CATEGORY_LABELS: Record<EvidenceCategory, string> = {
   'ai-visual': 'AI-generated video',
@@ -241,36 +269,39 @@ export function OptionsApp({ backend }: { backend: Backend }) {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-4xl gap-6 p-6">
-      <nav aria-label="Settings sections" className="w-48 shrink-0">
-        <h1 className="mb-3 text-lg font-bold">BlockTheSlop</h1>
+      <nav aria-label="Settings sections" className="btsl-nav w-48 shrink-0">
+        <h1 className="btsl-wordmark mb-1 text-2xl font-bold">BlockTheSlop</h1>
         {/* N04 blocker-5: honest, visible save state with rollback on failure. */}
         <p
           aria-live="polite"
           data-testid="save-status"
-          className={`mb-2 text-xs ${saveState === 'error' ? 'text-red-600' : 'opacity-60'}`}
+          className={`btsl-help mb-3 text-xs ${saveState === 'error' ? 'text-[var(--color-danger)]' : ''}`}
         >
           {saveState === 'saving' && 'Saving…'}
           {saveState === 'saved' && 'All changes saved'}
           {saveState === 'error' && 'Save failed — change reverted'}
         </p>
-        <ul className="space-y-1">
-          {TABS.map((t) => (
-            <li key={t.id}>
-              <button
-                type="button"
-                onClick={() => setTab(t.id)}
-                aria-current={tab === t.id ? 'page' : undefined}
-                className={`w-full rounded px-3 py-1.5 text-left text-sm ${
-                  tab === t.id
-                    ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900'
-                    : 'hover:bg-black/5 dark:hover:bg-white/10'
-                }`}
-              >
-                {t.label}
-              </button>
-            </li>
+        <div>
+          {TAB_GROUPS.map((group) => (
+            <div key={group.name} className="btsl-nav__group">
+              <div className="btsl-nav__heading">{group.name}</div>
+              <ul className="space-y-0.5">
+                {group.tabs.map((t) => (
+                  <li key={t.id}>
+                    <button
+                      type="button"
+                      onClick={() => setTab(t.id)}
+                      aria-current={tab === t.id ? 'page' : undefined}
+                      className="btsl-nav__item"
+                    >
+                      {t.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       </nav>
 
       <main className="min-w-0 flex-1">
@@ -389,45 +420,49 @@ export function OptionsApp({ backend }: { backend: Backend }) {
                   ]}
                 />
               </div>
-              <div className="mt-2">
-                <label className="flex items-center gap-2 text-sm">
-                  Color scheme
-                  <select
-                    aria-label="Color scheme"
-                    value={settings.theme}
-                    onChange={(e) =>
-                      void saveSettings({ ...settings, theme: e.currentTarget.value as Theme })
-                    }
-                    className="rounded border border-black/20 px-2 py-1 text-sm"
-                  >
-                    <option value="system">Follow system</option>
-                    <option value="light">Light</option>
-                    <option value="dark">Dark</option>
-                  </select>
+              <div className="mt-3">
+                <label className="flex items-center justify-between gap-2 text-sm">
+                  <span>Color scheme</span>
+                  <span className="btsl-select">
+                    <select
+                      aria-label="Color scheme"
+                      value={settings.theme}
+                      onChange={(e) =>
+                        void saveSettings({ ...settings, theme: e.currentTarget.value as Theme })
+                      }
+                    >
+                      <option value="system">Follow system</option>
+                      <option value="specimen-light">Specimen light</option>
+                      <option value="specimen-dark">Specimen dark</option>
+                      <option value="light">Light</option>
+                      <option value="dark">Dark</option>
+                    </select>
+                  </span>
                 </label>
               </div>
-              <div className="mt-2">
-                <label className="flex items-center gap-2 text-sm">
-                  On-page activity chip
-                  <select
-                    aria-label="On-page activity chip position"
-                    value={settings.activityIndicator.position}
-                    onChange={(e) =>
-                      void saveSettings({
-                        ...settings,
-                        activityIndicator: {
-                          position: e.currentTarget.value as ActivityIndicatorPosition,
-                        },
-                      })
-                    }
-                    className="rounded border border-black/20 px-2 py-1 text-sm"
-                  >
-                    <option value="off">Off (no chip on the page)</option>
-                    <option value="top-left">Top left</option>
-                    <option value="top-right">Top right</option>
-                    <option value="bottom-left">Bottom left</option>
-                    <option value="bottom-right">Bottom right (default)</option>
-                  </select>
+              <div className="mt-3">
+                <label className="flex items-center justify-between gap-2 text-sm">
+                  <span>On-page activity chip</span>
+                  <span className="btsl-select">
+                    <select
+                      aria-label="On-page activity chip position"
+                      value={settings.activityIndicator.position}
+                      onChange={(e) =>
+                        void saveSettings({
+                          ...settings,
+                          activityIndicator: {
+                            position: e.currentTarget.value as ActivityIndicatorPosition,
+                          },
+                        })
+                      }
+                    >
+                      <option value="off">Off (no chip on the page)</option>
+                      <option value="top-left">Top left</option>
+                      <option value="top-right">Top right</option>
+                      <option value="bottom-left">Bottom left</option>
+                      <option value="bottom-right">Bottom right (default)</option>
+                    </select>
+                  </span>
                 </label>
                 <p className="mt-1 text-xs opacity-70">
                   Shows how many distinct videos are hidden on the current page, with quick restore.
@@ -616,48 +651,39 @@ export function OptionsApp({ backend }: { backend: Backend }) {
 
         {tab === 'categories' && (
           <Section title="Per-category actions">
-            <table className="w-full text-sm">
-              <caption className="sr-only">Per-category filtering actions</caption>
-              <thead>
-                <tr className="text-left opacity-70">
-                  <th scope="col" className="py-1">
-                    Category
-                  </th>
-                  <th scope="col">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {EVIDENCE_CATEGORIES.map((category) => (
-                  <tr key={category}>
-                    <th scope="row" className="py-1 pr-2 text-left font-normal">
-                      {CATEGORY_LABELS[category]}
-                    </th>
-                    <td>
-                      <select
-                        aria-label={`${CATEGORY_LABELS[category]} action`}
-                        value={settings.categoryActions[category]}
-                        onChange={(e) =>
-                          void saveSettings({
-                            ...settings,
-                            categoryActions: {
-                              ...settings.categoryActions,
-                              [category]: e.currentTarget.value as CategoryAction,
-                            },
-                          })
-                        }
-                        className="block w-40 cursor-pointer rounded-md border border-black/20 bg-white px-2 py-1.5 text-sm shadow-sm focus-visible:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-600 dark:border-white/20 dark:bg-slate-800 dark:text-slate-100"
-                      >
-                        {(Object.keys(ACTION_LABELS) as CategoryAction[]).map((action) => (
-                          <option key={action} value={action}>
-                            {ACTION_LABELS[action]}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div style={{ display: 'grid' }}>
+              {EVIDENCE_CATEGORIES.map((category) => (
+                <div
+                  key={category}
+                  className="btsl-row btsl-row--cat"
+                  style={{ padding: '10px 0' }}
+                >
+                  <span style={{ fontSize: '16px' }}>{CATEGORY_LABELS[category]}</span>
+                  <span className="btsl-select">
+                    <select
+                      aria-label={`${CATEGORY_LABELS[category]} action`}
+                      value={settings.categoryActions[category]}
+                      onChange={(e) =>
+                        void saveSettings({
+                          ...settings,
+                          categoryActions: {
+                            ...settings.categoryActions,
+                            [category]: e.currentTarget.value as CategoryAction,
+                          },
+                        })
+                      }
+                      style={{ minWidth: '160px' }}
+                    >
+                      {(Object.keys(ACTION_LABELS) as CategoryAction[]).map((action) => (
+                        <option key={action} value={action}>
+                          {ACTION_LABELS[action]}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                </div>
+              ))}
+            </div>
           </Section>
         )}
 
@@ -1295,90 +1321,106 @@ function ReviewSection({
             onChange={(e) => setSearchInput(e.currentTarget.value)}
             placeholder="Search title, channel, video…"
             aria-label="Search history"
-            className="rounded border border-black/20 px-2 py-1 text-sm"
+            className="btsl-input btsl-input--search"
           />
-          <select
-            value={status}
-            onChange={(e) => {
-              setStatus(e.currentTarget.value as typeof status);
-              setPage(1);
-            }}
-            aria-label="Filter by status"
-            className="rounded border border-black/20 px-2 py-1 text-sm"
-          >
-            <option value="all">All statuses</option>
-            <option value="pending">Pending</option>
-            <option value="restored">Restored</option>
-            <option value="corrected">Corrected</option>
-            <option value="allowed">Allowed</option>
-          </select>
-          <select
-            value={surface}
-            onChange={(e) => {
-              setSurface(e.currentTarget.value);
-              setPage(1);
-            }}
-            aria-label="Filter by surface"
-            className="rounded border border-black/20 px-2 py-1 text-sm"
-          >
-            <option value="all">All surfaces</option>
-            <option value="home">Home</option>
-            <option value="search">Search</option>
-            <option value="subscriptions">Subscriptions</option>
-            <option value="watch-sidebar">Watch sidebar</option>
-            <option value="shorts-shelf">Shorts shelf</option>
-            <option value="channel">Channel</option>
-          </select>
-          <select
-            value={sort}
-            onChange={(e) => {
-              setSort(e.currentTarget.value as typeof sort);
-              setPage(1);
-            }}
-            aria-label="Sort order"
-            className="rounded border border-black/20 px-2 py-1 text-sm"
-          >
-            <option value="lastSeen-desc">Newest first</option>
-            <option value="lastSeen-asc">Oldest first</option>
-            <option value="title-asc">Title A–Z</option>
-            <option value="count-desc">Most hidden</option>
-          </select>
-          <input
-            type="date"
-            value={fromText}
-            onChange={(e) => {
-              setFromText(e.currentTarget.value);
-              setPage(1);
-            }}
-            aria-label="From date"
-            className="rounded border border-black/20 px-2 py-1 text-sm"
-          />
-          <input
-            type="date"
-            value={toText}
-            onChange={(e) => {
-              setToText(e.currentTarget.value);
-              setPage(1);
-            }}
-            aria-label="To date"
-            className="rounded border border-black/20 px-2 py-1 text-sm"
-          />
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              const parsed = Number(e.currentTarget.value);
-              setPageSize(PAGE_SIZES.includes(parsed) ? parsed : 25);
-              setPage(1);
-            }}
-            aria-label="Rows per page"
-            className="rounded border border-black/20 px-2 py-1 text-sm"
-          >
-            {PAGE_SIZES.map((size) => (
-              <option key={size} value={size}>
-                {size} / page
-              </option>
-            ))}
-          </select>
+          <span className="btsl-select">
+            <select
+              value={status}
+              onChange={(e) => {
+                setStatus(e.currentTarget.value as typeof status);
+                setPage(1);
+              }}
+              aria-label="Filter by status"
+            >
+              <option value="all">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="restored">Restored</option>
+              <option value="corrected">Corrected</option>
+              <option value="allowed">Allowed</option>
+            </select>
+          </span>
+          <span className="btsl-select">
+            <select
+              value={surface}
+              onChange={(e) => {
+                setSurface(e.currentTarget.value);
+                setPage(1);
+              }}
+              aria-label="Filter by surface"
+            >
+              <option value="all">All surfaces</option>
+              <option value="home">Home</option>
+              <option value="search">Search</option>
+              <option value="subscriptions">Subscriptions</option>
+              <option value="watch-sidebar">Watch sidebar</option>
+              <option value="shorts-shelf">Shorts shelf</option>
+              <option value="channel">Channel</option>
+            </select>
+          </span>
+          <span className="btsl-select">
+            <select
+              value={sort}
+              onChange={(e) => {
+                setSort(e.currentTarget.value as typeof sort);
+                setPage(1);
+              }}
+              aria-label="Sort order"
+            >
+              <option value="lastSeen-desc">Newest first</option>
+              <option value="lastSeen-asc">Oldest first</option>
+              <option value="title-asc">Title A–Z</option>
+              <option value="count-desc">Most hidden</option>
+            </select>
+          </span>
+          <label className="btsl-field--inline">
+            <span
+              className="btsl-help"
+              style={{ fontWeight: 'var(--fw-strong)', fontSize: '13px' }}
+            >
+              From:
+            </span>
+            <DatePicker
+              value={fromText}
+              onChange={(next) => {
+                setFromText(next);
+                setPage(1);
+              }}
+              aria-label="From date"
+            />
+          </label>
+          <label className="btsl-field--inline">
+            <span
+              className="btsl-help"
+              style={{ fontWeight: 'var(--fw-strong)', fontSize: '13px' }}
+            >
+              To:
+            </span>
+            <DatePicker
+              value={toText}
+              onChange={(next) => {
+                setToText(next);
+                setPage(1);
+              }}
+              aria-label="To date"
+            />
+          </label>
+          <span className="btsl-select">
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                const parsed = Number(e.currentTarget.value);
+                setPageSize(PAGE_SIZES.includes(parsed) ? parsed : 25);
+                setPage(1);
+              }}
+              aria-label="Rows per page"
+            >
+              {PAGE_SIZES.map((size) => (
+                <option key={size} value={size}>
+                  {size} / page
+                </option>
+              ))}
+            </select>
+          </span>
           <Button onClick={refresh}>Refresh</Button>
         </div>
 
@@ -1409,7 +1451,7 @@ function ReviewSection({
               {hasFilters ? ' (filters active)' : ''}
             </p>
             {selection.size > 0 && (
-              <div className="mb-2 flex flex-wrap items-center gap-2 rounded bg-black/5 p-2 text-sm dark:bg-white/10">
+              <div className="mb-2 flex flex-wrap items-center gap-2 rounded border border-[var(--color-rule)] bg-[var(--color-bg)] p-2 text-sm">
                 <span>{selection.size} selected</span>
                 <Button variant="danger" onClick={() => setConfirmBulk(true)}>
                   Delete selected…
@@ -1418,7 +1460,10 @@ function ReviewSection({
               </div>
             )}
             {bulkNotice !== null && (
-              <div className="mb-2 rounded bg-black/5 p-2 text-sm dark:bg-white/10" role="status">
+              <div
+                className="mb-2 rounded border border-[var(--color-rule)] bg-[var(--color-bg)] p-2 text-sm"
+                role="status"
+              >
                 <span>{bulkNotice}</span>
                 {undoAvailable && <Button onClick={() => void undoBulkDelete()}>Undo</Button>}
               </div>
@@ -1430,7 +1475,8 @@ function ReviewSection({
                 return (
                   <li
                     key={summary.key}
-                    className="rounded border border-black/10 p-3 text-sm dark:border-white/15"
+                    className="btsl-panel"
+                    style={{ padding: 'var(--sp-3)', marginBottom: 'var(--sp-3)' }}
                   >
                     <div className="flex items-start gap-2">
                       <input
@@ -1448,7 +1494,7 @@ function ReviewSection({
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-medium">{summary.title || '(untitled)'}</p>
-                          <span className="rounded bg-black/5 px-1.5 py-0.5 text-[11px] font-medium opacity-80 dark:bg-white/10">
+                          <span className="btsl-tag">
                             {formatDecisionReason(
                               summary.latestDecision.reason,
                               summary.latestDecision.ruleId,
@@ -1499,7 +1545,10 @@ function ReviewSection({
                       </Button>
                     </div>
                     {expandedKey === summary.key && (
-                      <div className="mt-2 rounded bg-black/5 p-2 text-xs dark:bg-white/10">
+                      <div
+                        className="mt-2 rounded border border-[var(--color-rule)] p-2 text-xs"
+                        style={{ background: 'var(--color-bg)' }}
+                      >
                         <p className="font-semibold">Decision</p>
                         <p>
                           {summary.latestDecision.action} · {summary.latestDecision.reason}

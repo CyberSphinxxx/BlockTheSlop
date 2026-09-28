@@ -1,4 +1,5 @@
 import { defineContentScript } from 'wxt/utils/define-content-script';
+import type { Theme } from '@/domain/settings';
 import { chunkedGet, chunkedPut } from './cache-client';
 import { BrowserKVStore } from '@/storage/db';
 import { SettingsStore } from '@/storage/settings-store';
@@ -397,7 +398,7 @@ export default defineContentScript({
     let lastPrefsKey = '';
     const applyPrefs = (s: {
       density: 'comfortable' | 'compact';
-      theme: 'system' | 'light' | 'dark';
+      theme: Theme;
       activityIndicator: {
         position: 'off' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
       };

@@ -1,51 +1,53 @@
 /**
- * N15/CFG-10: real, immediate theming for extension-owned pages.
+ * Specimen theme manager for BlockTheSlop.
  *
- * The options/popup `theme` setting must have a VISIBLE end-to-end effect:
- * - 'system'  → follow `prefers-color-scheme` (and track changes live);
- * - 'light'   → force the light palette;
- * - 'dark'    → force the dark palette.
- *
- * Applied on the document root (`color-scheme` + `data-bts-theme`) so native
- * controls, scrollbars and Tailwind `dark:` variants all respond. Both pages
- * call `applyThemeToDocument` on load and on every settings change.
+ * Supports registered themes: 'specimen-light' and 'specimen-dark', plus 'system'.
+ * When 'system' is selected, follows `prefers-color-scheme` live.
+ * Applies data-theme on the document root (and data-bts-theme for legacy compatibility).
  */
+import { DEFAULT_THEME_ID, THEMES, type ThemeId } from './theme-registry';
 
-export type ExtensionTheme = 'system' | 'light' | 'dark';
+export type ExtensionTheme = 'system' | ThemeId | 'light' | 'dark';
 
 /**
- * V6-13: the SEMANTIC token vocabulary. Components reference tokens, never
- * raw palettes — a future theme only needs to define these variables.
+ * Specimen layer 2 semantic tokens. Components consume ONLY these variables.
  */
 export const SEMANTIC_TOKENS: readonly string[] = [
-  '--bts-page-bg',
-  '--bts-page-fg',
-  '--bts-muted',
-  '--bts-panel',
-  '--bts-border',
-  '--bts-accent',
-  '--bts-accent-fg',
-  '--bts-danger',
-  '--bts-ok',
-  '--bts-focus-ring',
+  '--color-bg',
+  '--color-surface',
+  '--color-text',
+  '--color-text-muted',
+  '--color-border',
+  '--color-rule',
+  '--color-accent',
+  '--color-on-accent',
+  '--color-accent-hover',
+  '--color-danger',
+  '--color-on-danger',
+  '--color-success',
+  '--color-focus',
 ];
 
-/** Theme families that must define every token (future themes extend this). */
-export const THEME_FAMILIES: readonly ('light' | 'dark')[] = ['light', 'dark'];
+/** Theme families that must define every token. */
+export const THEME_FAMILIES: readonly ThemeId[] = THEMES.map((t) => t.id as ThemeId);
 
 /** Read a custom property off an element (test/inspect helper). */
 export function getComputedStyleToken(element: Element, token: string): string {
   return globalThis.getComputedStyle?.(element).getPropertyValue(token) ?? '';
 }
 
-function systemPrefersDark(): boolean {
+export function systemPrefersDark(): boolean {
   return globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches === true;
 }
 
-/** The resolved palette for a theme setting right now. */
-export function resolveTheme(theme: ExtensionTheme): 'light' | 'dark' {
-  if (theme === 'system') return systemPrefersDark() ? 'dark' : 'light';
-  return theme;
+/** The resolved theme ID for a theme setting right now. */
+export function resolveTheme(theme: string): ThemeId {
+  if (theme === 'specimen-dark' || theme === 'dark') return 'specimen-dark';
+  if (theme === 'specimen-light' || theme === 'light') return 'specimen-light';
+  if (theme === 'system') {
+    return systemPrefersDark() ? 'specimen-dark' : 'specimen-light';
+  }
+  return DEFAULT_THEME_ID;
 }
 
 /**
@@ -53,23 +55,41 @@ export function resolveTheme(theme: ExtensionTheme): 'light' | 'dark' {
  * that stops the live `prefers-color-scheme` listener (only when theme is
  * 'system'); safe to call repeatedly.
  */
-export function applyThemeToDocument(doc: Document, theme: ExtensionTheme): () => void {
+export function applyThemeToDocument(doc: Document, theme: string): () => void {
   const root = doc.documentElement;
   const resolved = resolveTheme(theme);
-  root.setAttribute('data-bts-theme', resolved);
-  root.style.setProperty('color-scheme', resolved);
-  root.classList.toggle('bts-dark', resolved === 'dark');
+
+  root.setAttribute('data-theme', resolved);
+  // Keep legacy attribute, class and color-scheme for native elements/compatibility:
+  const isDark = resolved === 'specimen-dark';
+  root.setAttribute('data-bts-theme', isDark ? 'dark' : 'light');
+  root.style.setProperty('color-scheme', isDark ? 'dark' : 'light');
+  root.classList.toggle('bts-dark', isDark);
+
+  // Cache in localStorage for immediate synchronous pre-paint application
+  try {
+    globalThis.localStorage?.setItem('bts-theme-setting', theme);
+    globalThis.localStorage?.setItem('bts-resolved-theme', resolved);
+  } catch {
+    // Storage access might be restricted in some contexts
+  }
 
   const media = globalThis.matchMedia?.('(prefers-color-scheme: dark)');
   const onChange = (): void => {
     if (theme !== 'system') return;
-    // Read the CAPTURED live MediaQueryList — re-querying could return a
-    // snapshot; the captured object reflects OS changes.
-    const next: 'light' | 'dark' = media?.matches === true ? 'dark' : 'light';
-    root.setAttribute('data-bts-theme', next);
-    root.style.setProperty('color-scheme', next);
-    root.classList.toggle('bts-dark', next === 'dark');
+    const next: ThemeId = media?.matches === true ? 'specimen-dark' : 'specimen-light';
+    root.setAttribute('data-theme', next);
+    const nextIsDark = next === 'specimen-dark';
+    root.setAttribute('data-bts-theme', nextIsDark ? 'dark' : 'light');
+    root.style.setProperty('color-scheme', nextIsDark ? 'dark' : 'light');
+    root.classList.toggle('bts-dark', nextIsDark);
+    try {
+      globalThis.localStorage?.setItem('bts-resolved-theme', next);
+    } catch {
+      // Ignore
+    }
   };
+
   media?.addEventListener('change', onChange);
   return () => media?.removeEventListener('change', onChange);
 }

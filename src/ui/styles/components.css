@@ -1,0 +1,635 @@
+/* ===== GLOBAL SCROLLBAR & LAYOUT STABILITY ===== */
+html {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-rule) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-rule);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-text-muted);
+}
+
+/* ===== COMPONENTS (components.css). Only layer 2 tokens allowed here. ===== */
+.btsl {
+  font: var(--fw-body) 16px/1.35 var(--font-family);
+  color: var(--color-text);
+}
+.btsl *,
+.btsl *::before,
+.btsl *::after {
+  box-sizing: border-box;
+}
+.btsl :focus-visible,
+.btsl-seg label:has(:focus-visible),
+.btsl-seg label:focus-within,
+.btsl-check:has(:focus-visible) input {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.btsl-stripe {
+  height: var(--stripe-height);
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--color-text) 0 10px,
+    var(--color-accent) 10px 20px
+  );
+}
+.btsl-stripe--sm {
+  height: 4px;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--color-text) 0 4px,
+    var(--color-accent) 4px 8px
+  );
+}
+.btsl-panel {
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-panel);
+  padding: var(--sp-3) var(--sp-4);
+}
+.btsl-h {
+  font-size: 22px;
+  font-weight: var(--fw-strong);
+  margin: 0 0 var(--sp-3);
+}
+.btsl-help {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.btsl-btn {
+  font: var(--fw-strong) 16px/1 var(--font-family);
+  min-height: 32px;
+  padding: 8px 16px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+.btsl-btn:hover {
+  background: var(--color-bg);
+}
+.btsl-btn:active {
+  transform: translateY(1px);
+}
+.btsl-btn--primary {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+.btsl-btn--primary:hover {
+  background: var(--color-accent-hover);
+}
+.btsl-btn--danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+.btsl-btn--danger:hover {
+  background: var(--color-danger);
+  color: var(--color-on-danger);
+}
+.btsl-btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btsl-seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 2px;
+  padding: 2px;
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+.btsl-seg--auto {
+  display: inline-grid;
+  grid-auto-columns: auto;
+}
+.btsl-seg button,
+.btsl-seg label {
+  font: var(--fw-body) 16px/1 var(--font-family);
+  min-height: 28px;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 1px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.btsl-seg button[aria-pressed='true'],
+.btsl-seg label:has(input:checked),
+.btsl-seg label[data-checked='true'] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: var(--fw-strong);
+}
+.btsl-check {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-start;
+  padding: var(--sp-2) 0;
+}
+.btsl-check input {
+  appearance: none;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  position: relative;
+  cursor: pointer;
+}
+.btsl-check input:checked {
+  background: var(--color-accent);
+}
+.btsl-check input:checked::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 10px;
+  border: solid var(--color-on-accent);
+  border-width: 0 3px 3px 0;
+  transform: rotate(45deg);
+}
+.btsl-check b {
+  font-weight: var(--fw-strong);
+  display: block;
+}
+select,
+option {
+  font-family: inherit;
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  color-scheme: inherit;
+}
+.btsl-input,
+.btsl-select select,
+.btsl select {
+  font: var(--fw-body) 16px var(--font-family);
+  min-height: 32px;
+  padding: 4px 10px;
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+.btsl-input {
+  width: 72px;
+}
+.btsl-input--search,
+.btsl-input[type='search'],
+.btsl-input--text,
+.btsl-input[type='text'] {
+  width: auto;
+  min-width: 220px;
+}
+.btsl-input--date,
+.btsl-input[type='date'] {
+  width: auto;
+  min-width: 140px;
+  color-scheme: inherit;
+  font-family: var(--font-family);
+}
+.btsl-field--inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.btsl-tag,
+.btsl-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  font: var(--fw-strong) 12px/1.3 var(--font-family);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-control);
+}
+/* Specimen DatePicker */
+.btsl-datepicker {
+  position: relative;
+  display: inline-block;
+}
+.btsl-datepicker__input-row {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.btsl-datepicker__input-row .btsl-input {
+  padding-right: 28px;
+}
+.btsl-datepicker__toggle {
+  position: absolute;
+  right: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: opacity 0.1s;
+}
+.btsl-datepicker__toggle:hover {
+  opacity: 1;
+}
+.btsl-datepicker__popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  width: 250px;
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  padding: var(--sp-3);
+  font: var(--fw-body) 14px/1 var(--font-family);
+  color: var(--color-text);
+}
+.btsl-datepicker__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-2);
+}
+.btsl-datepicker__title {
+  font-weight: var(--fw-strong);
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.btsl-datepicker__nav-btn {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-control);
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-weight: var(--fw-strong);
+  font-size: 14px;
+}
+.btsl-datepicker__nav-btn:hover {
+  background: var(--color-bg);
+}
+.btsl-datepicker__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: var(--fw-strong);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+.btsl-datepicker__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.btsl-datepicker__day {
+  width: 100%;
+  height: 28px;
+  padding: 0;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  font: var(--fw-body) 14px/1 var(--font-family);
+  color: var(--color-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.1s;
+}
+.btsl-datepicker__day:hover:not(:disabled) {
+  background: var(--color-bg);
+}
+.btsl-datepicker__day--outside {
+  opacity: 0.3;
+}
+.btsl-datepicker__day--today {
+  border-color: var(--color-rule);
+  font-weight: var(--fw-strong);
+}
+.btsl-datepicker__day--selected {
+  background: var(--color-accent) !important;
+  color: var(--color-on-accent) !important;
+  border: var(--border-width) solid var(--color-border);
+  font-weight: var(--fw-strong);
+}
+.btsl-datepicker__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--color-rule);
+}
+.btsl-select {
+  position: relative;
+  display: inline-block;
+}
+.btsl-select select,
+.btsl select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 28px;
+  cursor: pointer;
+}
+.btsl-select select:hover,
+.btsl select:hover {
+  background-color: var(--color-bg);
+}
+.btsl-select::after {
+  content: '';
+  position: absolute;
+  right: 10px;
+  top: 11px;
+  width: 7px;
+  height: 7px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.btsl-select select option,
+.btsl select option,
+select option {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  color-scheme: inherit;
+}
+.btsl-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--color-rule);
+}
+.btsl-row:last-child {
+  border-bottom: 0;
+}
+.btsl-row--cat > :first-child::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--sp-2);
+  background: var(--color-text);
+  vertical-align: middle;
+}
+.btsl-nav a {
+  display: block;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  text-decoration: none;
+  font-weight: var(--fw-body);
+}
+.btsl-nav a:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+.btsl-nav a[aria-current],
+.btsl-nav a.btsl-nav--active {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  border-color: var(--color-border);
+  font-weight: var(--fw-strong);
+}
+.btsl-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-2);
+}
+.btsl-stat strong {
+  display: block;
+  font-size: 34px;
+  line-height: 1;
+  font-weight: var(--fw-strong);
+}
+.btsl-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.btsl-table th {
+  text-align: left;
+  background: var(--color-bg);
+  border-bottom: var(--border-width) solid var(--color-border);
+  padding: 8px 12px;
+  font-weight: var(--fw-strong);
+}
+.btsl-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-rule);
+}
+.btsl-table tbody tr:hover {
+  background: var(--color-bg);
+}
+.btsl-notice {
+  background: var(--color-surface);
+  border: var(--border-width) dashed var(--color-border);
+  border-radius: var(--radius-panel);
+  padding: var(--sp-3);
+  color: var(--color-text-muted);
+}
+.btsl-toast {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-3);
+  background: var(--color-text);
+  color: var(--color-bg);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-panel);
+  padding: var(--sp-2) var(--sp-3);
+}
+.btsl-details summary {
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+.btsl-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.btsl-hidden {
+  background: var(--color-surface);
+  border: var(--border-width) dashed var(--color-border);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+}
+.btsl-hidden div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--sp-5) var(--sp-3);
+  color: var(--color-text-muted);
+}
+.btsl-hidden--compact div {
+  padding: var(--sp-2) var(--sp-3);
+}
+.btsl-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 10px 10px 6px;
+  overflow: hidden;
+  background: var(--color-text);
+  color: var(--color-bg);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-control);
+  font-weight: var(--fw-strong);
+}
+.btsl-chip::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: repeating-linear-gradient(-45deg, var(--color-bg) 0 4px, var(--color-accent) 4px 8px);
+}
+.btsl-chip em {
+  font-style: normal;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  padding: 0 6px;
+  border-radius: 2px;
+}
+.btsl-popup {
+  width: 320px;
+  background: var(--color-bg);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+}
+.btsl-popup__body {
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  display: grid;
+  gap: var(--sp-3);
+}
+.btsl-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.btsl-wordmark {
+  font-size: 28px;
+  font-weight: var(--fw-strong);
+  line-height: 1;
+}
+.btsl-options {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  background: var(--color-bg);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+}
+.btsl-options aside {
+  padding: var(--sp-4) var(--sp-3);
+}
+.btsl-options main {
+  padding: var(--sp-4);
+  display: grid;
+  gap: var(--sp-4);
+  align-content: start;
+}
+/* Specimen Sidebar Navigation */
+.btsl-nav {
+  font-family: var(--font-family);
+}
+.btsl-nav__group {
+  margin-bottom: var(--sp-3);
+}
+.btsl-nav__heading {
+  font-size: 11px;
+  font-weight: var(--fw-strong);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+  padding: 0 8px 4px;
+  border-bottom: 1px solid var(--color-rule);
+  margin-bottom: 4px;
+}
+.btsl-nav__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  font: var(--fw-body) 15px/1.3 var(--font-family);
+  background: none;
+  cursor: pointer;
+  transition:
+    background-color 0.1s,
+    border-color 0.1s;
+}
+.btsl-nav__item:hover {
+  background: var(--color-surface);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+.btsl-nav__item[aria-current='page'] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  border-color: var(--color-border);
+  font-weight: var(--fw-strong);
+  text-decoration: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition: none !important;
+  }
+  .btsl-btn {
+    transition: none;
+  }
+}

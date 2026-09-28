@@ -1,0 +1,62 @@
+/* ===== LAYER 2: semantic tokens, one block per theme (themes.css) ===== */
+
+:root,
+:root[data-theme='specimen-light'],
+[data-theme='specimen-light'] {
+  color-scheme: light;
+  --color-bg: var(--steel-100);
+  --color-surface: var(--white);
+  --color-text: var(--ink-900);
+  --color-text-muted: var(--gray-600);
+  --color-border: var(--ink-900);
+  --color-rule: var(--gray-300);
+  --color-accent: var(--yellow-500);
+  --color-on-accent: var(--ink-900);
+  --color-accent-hover: var(--yellow-400);
+  --color-danger: var(--red-600);
+  --color-on-danger: var(--white);
+  --color-success: var(--green-700);
+  --color-focus: var(--ink-900);
+
+  /* Bridge for transition period */
+  --bts-page-bg: var(--color-bg);
+  --bts-page-fg: var(--color-text);
+  --bts-muted: var(--color-text-muted);
+  --bts-panel: var(--color-surface);
+  --bts-border: var(--color-border);
+  --bts-accent: var(--color-accent);
+  --bts-accent-fg: var(--color-on-accent);
+  --bts-danger: var(--color-danger);
+  --bts-ok: var(--color-success);
+  --bts-focus-ring: var(--color-focus);
+}
+
+:root[data-theme='specimen-dark'],
+[data-theme='specimen-dark'] {
+  color-scheme: dark;
+  --color-bg: var(--steel-900);
+  --color-surface: var(--steel-800);
+  --color-text: var(--ink-100);
+  --color-text-muted: var(--gray-400);
+  --color-border: var(--gray-600);
+  --color-rule: var(--gray-700);
+  --color-accent: var(--yellow-500);
+  --color-on-accent: var(--ink-900);
+  --color-accent-hover: var(--yellow-400);
+  --color-danger: var(--red-300);
+  --color-on-danger: var(--ink-900);
+  --color-success: var(--green-300);
+  --color-focus: var(--ink-100);
+
+  /* Bridge for transition period */
+  --bts-page-bg: var(--color-bg);
+  --bts-page-fg: var(--color-text);
+  --bts-muted: var(--color-text-muted);
+  --bts-panel: var(--color-surface);
+  --bts-border: var(--color-border);
+  --bts-accent: var(--color-accent);
+  --bts-accent-fg: var(--color-on-accent);
+  --bts-danger: var(--color-danger);
+  --bts-ok: var(--color-success);
+  --bts-focus-ring: var(--color-focus);
+}

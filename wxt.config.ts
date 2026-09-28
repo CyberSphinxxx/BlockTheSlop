@@ -46,7 +46,7 @@ export default defineConfig({
     host_permissions: ['*://*.youtube.com/*'],
     web_accessible_resources: [
       {
-        resources: ['icon/*.png'],
+        resources: ['icon/*.png', 'fonts/*.woff2'],
         matches: ['*://*.youtube.com/*'],
       },
     ],

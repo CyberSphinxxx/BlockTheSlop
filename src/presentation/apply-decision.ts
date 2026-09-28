@@ -1,5 +1,5 @@
 import type { FilterDecision } from '@/domain/decision';
-import type { UserSettings } from '@/domain/settings';
+import type { Theme, UserSettings } from '@/domain/settings';
 import type { NormalizedVideoCandidate } from '@/domain/video';
 import { ATTR_FINGERPRINT, ATTR_STATE, ATTR_VIDEO_ID, SELECTORS } from '@/youtube/selectors';
 import { parseDiscovered, cardKindOf } from '@/youtube/discover';
@@ -57,18 +57,24 @@ export function ensureStyles(): void {
  */
 export function applyPresentationPreferences(prefs: {
   density: 'comfortable' | 'compact';
-  theme: 'system' | 'light' | 'dark';
+  theme: Theme;
 }): void {
   document.documentElement.classList.toggle('bts-root-compact', prefs.density === 'compact');
-  // N15/CFG-10: the theme attribute drives PRESENTATION_CSS variables for
-  // extension-owned surfaces on the page. 'system' removes the attribute so
-  // the host page's own scheme applies (no forced override).
-  if (prefs.theme === 'system') {
-    document.documentElement.removeAttribute('data-bts-theme');
-  } else {
-    document.documentElement.setAttribute('data-bts-theme', prefs.theme);
+  let resolved = prefs.theme;
+  if (resolved === 'system') {
+    resolved =
+      globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches === true
+        ? 'specimen-dark'
+        : 'specimen-light';
+  } else if (resolved === 'dark') {
+    resolved = 'specimen-dark';
+  } else if (resolved === 'light') {
+    resolved = 'specimen-light';
   }
-  document.documentElement.style.setProperty('color-scheme', prefs.theme);
+  document.documentElement.setAttribute('data-theme', resolved);
+  const isDark = resolved === 'specimen-dark';
+  document.documentElement.setAttribute('data-bts-theme', isDark ? 'dark' : 'light');
+  document.documentElement.style.setProperty('color-scheme', isDark ? 'dark' : 'light');
 }
 
 /** Every extension-owned element we may have inserted under a card. */

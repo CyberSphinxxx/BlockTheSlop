@@ -7,53 +7,54 @@ import {
   applyThemeToDocument,
 } from '@/ui/theme';
 
-describe('semantic token set (V6-13)', () => {
+describe('semantic token set (Specimen)', () => {
   it('defines the full semantic vocabulary used by extension pages', () => {
     for (const token of [
-      '--bts-page-bg',
-      '--bts-page-fg',
-      '--bts-muted',
-      '--bts-panel',
-      '--bts-border',
-      '--bts-accent',
-      '--bts-accent-fg',
-      '--bts-danger',
-      '--bts-ok',
-      '--bts-focus-ring',
+      '--color-bg',
+      '--color-surface',
+      '--color-text',
+      '--color-text-muted',
+      '--color-border',
+      '--color-rule',
+      '--color-accent',
+      '--color-on-accent',
+      '--color-accent-hover',
+      '--color-danger',
+      '--color-on-danger',
+      '--color-success',
+      '--color-focus',
     ]) {
       expect(SEMANTIC_TOKENS).toContain(token);
     }
   });
 
   it('every token resolves in BOTH light and dark palettes (no missing fallback)', () => {
-    expect([...THEME_FAMILIES].sort()).toEqual(['dark', 'light']);
+    expect([...THEME_FAMILIES].sort()).toEqual(['specimen-dark', 'specimen-light']);
   });
 
   it('theme resolution is deterministic', () => {
-    expect(resolveTheme('light')).toBe('light');
-    expect(resolveTheme('dark')).toBe('dark');
+    expect(resolveTheme('specimen-light')).toBe('specimen-light');
+    expect(resolveTheme('specimen-dark')).toBe('specimen-dark');
+    expect(resolveTheme('light')).toBe('specimen-light');
+    expect(resolveTheme('dark')).toBe('specimen-dark');
     // 'system' resolves via matchMedia; jsdom reports light by default.
-    expect(['light', 'dark']).toContain(resolveTheme('system'));
+    expect(['specimen-light', 'specimen-dark']).toContain(resolveTheme('system'));
   });
 
   it('applyThemeToDocument sets the token-bearing attribute idempotently', () => {
     const doc = document;
-    const cleanup = applyThemeToDocument(doc, 'dark');
-    expect(doc.documentElement.getAttribute('data-bts-theme')).toBe('dark');
-    applyThemeToDocument(doc, 'dark');
-    expect(doc.documentElement.getAttribute('data-bts-theme')).toBe('dark');
+    const cleanup = applyThemeToDocument(doc, 'specimen-dark');
+    expect(doc.documentElement.getAttribute('data-theme')).toBe('specimen-dark');
+    applyThemeToDocument(doc, 'specimen-dark');
+    expect(doc.documentElement.getAttribute('data-theme')).toBe('specimen-dark');
     cleanup();
   });
 });
 
-describe('computed token application (V6-13)', () => {
+describe('computed token application (Specimen)', () => {
   it('tokens are declared on :root and overridable per theme', () => {
-    // The CSS declares tokens; here we verify the declaration EXISTS for
-    // every semantic token (getComputedStyle returns '' only if undeclared).
     const root = document.documentElement;
     for (const token of SEMANTIC_TOKENS) {
-      // jsdom resolves custom properties to '' but the stylesheet parse is
-      // what matters; assert via a style probe instead.
       const probe = document.createElement('style');
       probe.textContent = `:root { ${token}: initial; }`;
       document.head.appendChild(probe);

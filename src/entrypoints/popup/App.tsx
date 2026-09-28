@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { EvidenceCategory } from '@/domain/evidence';
-import { EVIDENCE_CATEGORIES } from '@/domain/evidence';
 import type { CategoryAction, FilterMode, UserSettings } from '@/domain/settings';
 import { validateSettings } from '@/domain/settings';
 import type { DailyStatsState } from '@/domain/stats-daily';
 import { dayBucketFor } from '@/domain/stats-daily';
-import { Button, SegmentedControl } from '@/ui/components/primitives';
+import { SegmentedControl } from '@/ui/components/primitives';
 import type { Backend } from '@/ui/messaging';
 import { applyThemeToDocument } from '@/ui/theme';
 
@@ -110,8 +109,6 @@ export function PopupApp({ backend }: { backend: Backend }) {
         collectLocalStats: status.collectLocalStats ?? true,
       });
     } catch (e) {
-      // No tabs API / no content script on this tab. A truly hostile failure
-      // still must not crash the popup or produce a fake "connected" state.
       setTabStatus({
         kind: 'error',
         message: e instanceof Error ? e.message : String(e),
@@ -141,7 +138,6 @@ export function PopupApp({ backend }: { backend: Backend }) {
     });
   }, [refresh, loadTabStatus, loadTabHides]);
 
-  // Theme follows the setting immediately (same as options/onboarding).
   const theme = settings === null ? undefined : settings.theme;
   useEffect(() => {
     if (theme === undefined) return;
@@ -154,12 +150,11 @@ export function PopupApp({ backend }: { backend: Backend }) {
       const previous = settings;
       const optimistic = validateSettings({ ...previous, ...patch });
       if (optimistic === null) return;
-      setSettings(optimistic); // immediate visible update
+      setSettings(optimistic);
       try {
         await backend.saveSettings(patch);
-        setError(null); // a later successful save clears any earlier notice
+        setError(null);
       } catch {
-        // Visible rollback: the control returns to the stored value.
         setSettings(previous);
         setError('Saving failed — the change was not applied. Please try again.');
       }
@@ -169,243 +164,262 @@ export function PopupApp({ backend }: { backend: Backend }) {
 
   if (error !== null && settings === null) {
     return (
-      <div className="p-4 text-sm" role="alert">
-        <p className="font-semibold">BlockTheSlop could not load its settings.</p>
-        <p className="mt-1 opacity-70">{error}</p>
-        <p className="mt-2 opacity-70">YouTube filtering is unaffected by this error.</p>
+      <div className="btsl-popup" role="alert">
+        <div className="btsl-stripe"></div>
+        <div className="btsl-popup__body">
+          <div className="btsl-panel" style={{ color: 'var(--color-danger)' }}>
+            <h2 className="btsl-h" style={{ fontSize: '18px' }}>
+              BlockTheSlop could not load its settings.
+            </h2>
+            <p className="btsl-help">{error}</p>
+            <p className="btsl-help">YouTube filtering is unaffected by this error.</p>
+          </div>
+        </div>
       </div>
     );
   }
+
   if (settings === null) {
     return (
-      <div className="p-4 text-sm opacity-70" aria-busy="true">
-        Loading…
+      <div className="btsl-popup" aria-busy="true">
+        <div className="btsl-stripe"></div>
+        <div className="btsl-popup__body">
+          <div className="btsl-panel btsl-help">Loading…</div>
+        </div>
       </div>
     );
   }
 
-  const loadError = error; // non-null here means a SAVE failed (rolled back)
-
-  // The local day is computed ONCE per popup mount (stable across re-renders).
+  const loadError = error;
   const todayBucket = daily?.days[todayKey];
-  // Audit M3: the note comes from the AUTHORITATIVE settings the popup already
-  // loaded — not from the content script's status report (which may be absent
-  // when the content script has not loaded, hiding the note entirely).
   const statsNote = !settings.collectLocalStats
     ? 'Statistics are turned off in Settings — outcomes are not being collected.'
     : null;
 
+  const distinctHiddenCount = todayBucket ? todayBucket.distinctHidden.size : 0;
+  const distinctWarnedCount = todayBucket ? todayBucket.distinctWarned.size : 0;
+
   return (
-    <div className="w-[340px] max-w-full p-4">
-      {loadError !== null && (
-        <div
-          role="alert"
-          className="mb-2 rounded border border-red-400/40 bg-red-500/10 p-2 text-xs"
-        >
-          {loadError}
-        </div>
-      )}
-      <header className="mb-3 flex items-center justify-between gap-2">
-        <h1 className="text-base font-bold">BlockTheSlop</h1>
-        <SegmentedControl<'on' | 'off'>
-          legend="Filtering"
-          name="enabled"
-          value={settings.enabled ? 'on' : 'off'}
-          onChange={(v) => void save({ enabled: v === 'on' })}
-          options={[
-            { value: 'on', label: 'On' },
-            { value: 'off', label: 'Off' },
-          ]}
-        />
-      </header>
-
-      {/* V6-08: active-tab status — honest states, never a blind "connected". */}
-      <section
-        className="rounded-md border border-black/10 p-2 text-sm dark:border-white/10"
-        aria-label="Active tab status"
-      >
-        {tabStatus.kind === 'checking' && (
-          <p className="opacity-70" aria-busy="true">
-            Checking this tab…
-          </p>
+    <div className="btsl-popup">
+      <div className="btsl-stripe"></div>
+      <div className="btsl-popup__body">
+        {loadError !== null && (
+          <div
+            role="alert"
+            className="btsl-notice"
+            style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}
+          >
+            {loadError}
+          </div>
         )}
-        {tabStatus.kind === 'active' && (
-          <p>
-            <span className="font-semibold">Active</span> on YouTube · {tabStatus.surface} ·{' '}
-            {tabStatus.distinctHidden} hidden on this page
-          </p>
-        )}
-        {tabStatus.kind === 'paused' && <p>Filtering is paused on this tab.</p>}
-        {tabStatus.kind === 'unavailable' && (
-          <p className="opacity-70">
-            Not available here — BlockTheSlop only filters youtube.com pages.
-          </p>
-        )}
-        {tabStatus.kind === 'error' && (
-          <p className="opacity-70">
-            This YouTube tab has not reported status yet (try reopening the popup).
-          </p>
-        )}
-      </section>
 
-      {statsNote !== null && (
-        <p className="mt-2 text-xs opacity-70" role="note">
-          {statsNote}
-        </p>
-      )}
+        <header className="btsl-bar">
+          <h1 className="btsl-wordmark" style={{ margin: 0 }}>
+            BlockTheSlop
+          </h1>
+          <SegmentedControl<'on' | 'off'>
+            legend=""
+            name="enabled"
+            autoWidth
+            value={settings.enabled ? 'on' : 'off'}
+            onChange={(v) => void save({ enabled: v === 'on' })}
+            options={[
+              { value: 'on', label: 'On' },
+              { value: 'off', label: 'Off' },
+            ]}
+          />
+        </header>
 
-      <SegmentedControl<FilterMode>
-        legend="Filtering mode"
-        name="mode"
-        value={settings.mode}
-        onChange={(mode) => void save({ mode })}
-        options={[
-          { value: 'safe', label: 'Safe', hint: 'Hide only very high-confidence content' },
-          { value: 'balanced', label: 'Balanced', hint: 'Recommended' },
-          {
-            value: 'strict',
-            label: 'Strict',
-            hint: 'Hide moderate-confidence content; more false positives',
-          },
-          {
-            value: 'aggressive',
-            label: 'Aggressive',
-            hint: 'Maximum AI recall; expect false positives (recoverable)',
-          },
-        ]}
-      />
-
-      {/* V6-08: LOCAL-CALENDAR-DAY outcomes (distinct videos), explicitly
-          labeled — the old cumulative lifetime section labeled "Today" is
-          gone. Distinct hidden IDs and warned IDs are different numbers. */}
-      <section className="mt-3" aria-label="Outcomes today">
-        <h2 className="text-xs font-semibold uppercase tracking-wide opacity-70">
-          Today ({todayKey}) — this device
-        </h2>
-        {todayBucket === undefined ? (
-          <p className="text-sm opacity-70">No outcomes recorded yet today.</p>
-        ) : (
-          <p className="text-sm">
-            <span className="font-semibold">{todayBucket.distinctHidden.size}</span> distinct videos
-            hidden · <span className="font-semibold">{todayBucket.distinctWarned.size}</span>{' '}
-            distinct videos warned
-          </p>
-        )}
-        <details className="mt-1 text-xs opacity-70">
-          <summary>Why these numbers</summary>
-          <p className="mt-1">
-            Counts are distinct videos seen today (a video repeated on this page or across tabs
-            counts once). They are not lifetime totals, do not include ads, and do not claim any
-            video is definitely AI.
-          </p>
-        </details>
-      </section>
-
-      <section className="mt-3" aria-label="Quick category controls">
-        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-70">
-          Quick controls
-        </h2>
-        {QUICK_CATEGORIES.map((category) => {
-          const action = settings.categoryActions[category];
-          const effective: CategoryAction = action === 'inherit' ? 'allow' : action;
-          return (
-            <div key={category} className="flex items-center justify-between py-1">
-              <label htmlFor={`qc-${category}`} className="text-sm">
-                {CATEGORY_LABELS[category]}
-              </label>
-              <select
-                id={`qc-${category}`}
-                value={effective}
-                onChange={(event) =>
-                  void save({
-                    categoryActions: {
-                      ...settings.categoryActions,
-                      [category]: event.currentTarget.value as CategoryAction,
-                    },
-                  })
-                }
-                className="rounded border border-black/20 bg-transparent px-1 py-0.5 text-sm dark:border-white/30"
-              >
-                {ACTION_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          );
-        })}
-      </section>
-
-      {tabHides.length > 0 && (
-        <section
-          className="mt-3 border-t border-black/10 pt-2 dark:border-white/10"
-          aria-label="Session recovery"
-        >
-          <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-70">
-            Hidden on this page ({tabHides.length})
-          </h2>
-          <div className="max-h-36 space-y-1 overflow-y-auto">
-            {tabHides.map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-2 py-1 text-xs">
-                <span className="flex-1 truncate font-medium">
-                  {item.title || item.videoId || 'Hidden video'}
-                </span>
-                <Button
-                  onClick={async () => {
-                    try {
-                      const tabs = await browser.tabs.query({
-                        active: true,
-                        currentWindow: true,
-                      });
-                      const activeTab = tabs[0];
-                      if (activeTab?.id) {
-                        await browser.tabs.sendMessage(activeTab.id, {
-                          type: 'session:restore',
-                          payload: { id: item.id },
-                        });
-                        void loadTabHides();
-                      }
-                    } catch {
-                      // Tab unavailable.
-                    }
-                  }}
-                  aria-label={`Restore ${item.title}`}
-                >
-                  Restore
-                </Button>
-              </div>
-            ))}
+        {/* Stats card */}
+        <section className="btsl-panel btsl-stat" role="region" aria-label="Outcomes today">
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)' }}>
+            <strong style={{ fontSize: '34px', lineHeight: 1, fontWeight: 'var(--fw-strong)' }}>
+              {distinctHiddenCount}
+            </strong>
+            <span
+              style={{
+                fontSize: '20px',
+                fontWeight: 'var(--fw-strong)',
+                color: 'var(--color-text)',
+              }}
+            >
+              hidden today
+            </span>
+          </div>
+          <div className="btsl-help" style={{ marginTop: '2px' }}>
+            {statsNote ??
+              `Today (${todayKey}) — ${distinctHiddenCount} distinct videos hidden${
+                distinctWarnedCount > 0 ? ` · ${distinctWarnedCount} distinct videos warned` : ''
+              } on this device`}
           </div>
         </section>
-      )}
 
-      <nav className="mt-4 flex gap-2" aria-label="Open pages">
-        <Button
-          variant="primary"
-          onClick={() =>
-            void browser.tabs.create({ url: `${browser.runtime.getURL('/options.html')}#review` })
-          }
-        >
-          Review hidden content
-        </Button>
-        <Button
-          onClick={() => void browser.tabs.create({ url: browser.runtime.getURL('/options.html') })}
-        >
-          Settings
-        </Button>
-      </nav>
+        {/* Mode selector */}
+        <SegmentedControl<FilterMode>
+          legend=""
+          name="mode"
+          value={settings.mode}
+          onChange={(mode) => void save({ mode })}
+          options={[
+            { value: 'safe', label: 'Safe', hint: 'Hide only very high-confidence content' },
+            { value: 'balanced', label: 'Balanced', hint: 'Recommended' },
+            {
+              value: 'strict',
+              label: 'Strict',
+              hint: 'Hide moderate-confidence content; more false positives',
+            },
+            {
+              value: 'aggressive',
+              label: 'Aggressive',
+              hint: 'Maximum AI recall; expect false positives (recoverable)',
+            },
+          ]}
+        />
 
-      <details className="mt-3 text-xs opacity-70">
-        <summary className="cursor-pointer">
-          {EVIDENCE_CATEGORIES.length} categories · heuristics are imperfect · every hidden item can
-          be restored
-        </summary>
-        <p className="mt-1">
-          BlockTheSlop works entirely on your device. No history is uploaded, and no account is
-          needed. It filters visible-text evidence on youtube.com only.
-        </p>
-      </details>
+        {/* Category controls */}
+        <section
+          className="btsl-panel"
+          style={{ paddingTop: '4px', paddingBottom: '4px' }}
+          role="region"
+          aria-label="Quick category controls"
+        >
+          <span
+            style={{
+              position: 'absolute',
+              width: '1px',
+              height: '1px',
+              padding: 0,
+              margin: '-1px',
+              overflow: 'hidden',
+              clip: 'rect(0, 0, 0, 0)',
+              whiteSpace: 'nowrap',
+              border: 0,
+            }}
+          >
+            Quick controls
+          </span>
+          {QUICK_CATEGORIES.map((category) => {
+            const action = settings.categoryActions[category];
+            const effective: CategoryAction = action === 'inherit' ? 'allow' : action;
+            return (
+              <div key={category} className="btsl-row btsl-row--cat">
+                <label htmlFor={`qc-${category}`}>{CATEGORY_LABELS[category]}</label>
+                <span className="btsl-select">
+                  <select
+                    id={`qc-${category}`}
+                    aria-label={CATEGORY_LABELS[category]}
+                    value={effective}
+                    onChange={(event) =>
+                      void save({
+                        categoryActions: {
+                          ...settings.categoryActions,
+                          [category]: event.currentTarget.value as CategoryAction,
+                        },
+                      })
+                    }
+                  >
+                    {ACTION_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </span>
+              </div>
+            );
+          })}
+        </section>
+
+        {/* Notice / Session recovery banner */}
+        {tabHides[0] ? (
+          <div className="btsl-notice btsl-bar" role="region" aria-label="Session recovery">
+            <span
+              style={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                maxWidth: '200px',
+              }}
+            >
+              {tabHides[0]?.title || tabHides[0]?.videoId || 'Hidden video'}
+            </span>
+            <button
+              type="button"
+              className="btsl-link"
+              onClick={async () => {
+                const item = tabHides[0];
+                if (!item) return;
+                try {
+                  const tabs = await browser.tabs.query({
+                    active: true,
+                    currentWindow: true,
+                  });
+                  const activeTab = tabs[0];
+                  if (activeTab?.id) {
+                    await browser.tabs.sendMessage(activeTab.id, {
+                      type: 'session:restore',
+                      payload: { id: item.id },
+                    });
+                    void loadTabHides();
+                  }
+                } catch {
+                  // Tab unavailable.
+                }
+              }}
+              aria-label={`Restore ${tabHides[0]?.title || tabHides[0]?.videoId || 'Hidden video'}`}
+            >
+              Restore
+            </button>
+          </div>
+        ) : tabStatus.kind === 'unavailable' ? (
+          <div
+            className="btsl-notice"
+            role="status"
+            aria-label="Active tab status"
+            style={{ padding: '8px 12px' }}
+          >
+            <span className="btsl-help">
+              Not available here — BlockTheSlop only filters youtube.com pages.
+            </span>
+          </div>
+        ) : tabStatus.kind === 'active' ? (
+          <div
+            className="btsl-notice btsl-bar"
+            role="status"
+            aria-label="Active tab status"
+            style={{ padding: '8px 12px' }}
+          >
+            <span>Active on YouTube · {tabStatus.surface}</span>
+            <span className="btsl-help">{tabStatus.distinctHidden} on page</span>
+          </div>
+        ) : null}
+
+        {/* Action buttons */}
+        <nav style={{ display: 'flex', gap: 'var(--sp-2)' }} aria-label="Open pages">
+          <button
+            type="button"
+            className="btsl-btn btsl-btn--primary"
+            style={{ flex: 2 }}
+            onClick={() =>
+              void browser.tabs.create({
+                url: `${browser.runtime.getURL('/options.html')}#review`,
+              })
+            }
+          >
+            Review hidden
+          </button>
+          <button
+            type="button"
+            className="btsl-btn"
+            style={{ flex: 1 }}
+            onClick={() =>
+              void browser.tabs.create({ url: browser.runtime.getURL('/options.html') })
+            }
+          >
+            Settings
+          </button>
+        </nav>
+      </div>
     </div>
   );
 }
