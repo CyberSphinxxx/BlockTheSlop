@@ -129,6 +129,7 @@ const EXCLUDED_DIRS = new Set([
   'block-the-slop-v4-loop-kit',
   'block-the-slop-v5-loop-kit',
   'block-the-slop-v6-loop-kit',
+  'block-the-slop-v7',
 ]);
 
 function collectFiles(dir, base = root, out = []) {
