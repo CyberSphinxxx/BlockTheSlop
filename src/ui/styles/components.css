@@ -1,8 +1,26 @@
-/* ===== GLOBAL SCROLLBAR & LAYOUT STABILITY ===== */
+/* ===== SCROLLBAR STYLING & OPTIONS LAYOUT STABILITY ===== */
 html {
-  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--color-rule) transparent;
+}
+
+/* Prevent options page layout shift when switching between long/short tabs */
+html:has(.btsl-options),
+.btsl-options-page {
+  scrollbar-gutter: stable;
+}
+
+/* Popup window sizing: strict 320px fit with no scrollbars or gutters */
+html:has(.btsl-popup),
+body:has(.btsl-popup),
+.btsl-popup-page,
+.btsl-popup-page html {
+  width: 320px;
+  max-width: 320px;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  scrollbar-gutter: auto;
 }
 
 ::-webkit-scrollbar {
@@ -44,7 +62,7 @@ html {
   height: var(--stripe-height);
   background: repeating-linear-gradient(
     -45deg,
-    var(--color-text) 0 10px,
+    var(--color-hazard-dark, var(--ink-900, #111)) 0 10px,
     var(--color-accent) 10px 20px
   );
 }
@@ -52,7 +70,7 @@ html {
   height: 4px;
   background: repeating-linear-gradient(
     -45deg,
-    var(--color-text) 0 4px,
+    var(--color-hazard-dark, var(--ink-900, #111)) 0 4px,
     var(--color-accent) 4px 8px
   );
 }
@@ -530,7 +548,11 @@ select option {
   position: absolute;
   inset: 0 0 auto;
   height: 4px;
-  background: repeating-linear-gradient(-45deg, var(--color-bg) 0 4px, var(--color-accent) 4px 8px);
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--color-hazard-dark, var(--ink-900, #111)) 0 4px,
+    var(--color-accent) 4px 8px
+  );
 }
 .btsl-chip em {
   font-style: normal;

@@ -17,6 +17,7 @@
   --color-on-danger: var(--white);
   --color-success: var(--green-700);
   --color-focus: var(--ink-900);
+  --color-hazard-dark: var(--ink-900);
 
   /* Bridge for transition period */
   --bts-page-bg: var(--color-bg);
@@ -47,6 +48,7 @@
   --color-on-danger: var(--ink-900);
   --color-success: var(--green-300);
   --color-focus: var(--ink-100);
+  --color-hazard-dark: var(--ink-900);
 
   /* Bridge for transition period */
   --bts-page-bg: var(--color-bg);

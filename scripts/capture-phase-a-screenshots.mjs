@@ -55,8 +55,9 @@ async function main() {
 
   for (const d of outDirs) {
     await popup.screenshot({ path: join(d, 'popup-specimen-light.png') });
+    await page.screenshot({ path: join(d, 'popup-fullpage-light.png') });
   }
-  console.log('Saved popup-specimen-light.png');
+  console.log('Saved popup-specimen-light.png and popup-fullpage-light.png');
 
   // Test dark theme
   await page.evaluate(() => {
