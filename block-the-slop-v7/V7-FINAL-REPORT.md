@@ -1,8 +1,9 @@
 # BlockTheSlop V7 — Final Release Report
 
 **Date:** 2026-09-28 (evidence run 2026-09-27T19:16+08:00)
-**HEAD:** `8775cfe` (`origin/main`, all 8 code/test changes and release evidence committed)
-**Verdict:** **READY FOR OWNER SUBMISSION** — all 20 verify gates passed in a single clean run; both V7 defects fixed with regression tests; live-YouTube evidence captured separately from fixture evidence.
+**Historical report:** this document records the original V7 run and its artifact hashes. For the ZIP verified in the current checkout, use `CURRENT-RELEASE.md` and `current/`.
+**HEAD at report update:** `8775cfe` (all 8 code/test changes and original release evidence committed)
+**Verdict for the original run:** **READY FOR OWNER SUBMISSION** — all 20 verify gates passed in a single clean run; both V7 defects fixed with regression tests; live-YouTube evidence captured separately from fixture evidence.
 
 ---
 
@@ -99,7 +100,9 @@ Rule: SHA-256 over sorted repo file names + contents, excluding `.output`, `node
 - **Release Gate / Shipped Code:** The source tree fingerprint at the time of the release gate run (`verify-2026-09-27T10-41-47-777Z`) was `465e1c2521fd601b2ddea8d580b773b60c9f351023651c7fc9102d59f37b8753`, matching `RELEASE_EVIDENCE.json` (`sourceFingerprint`).
 - **Post-Commit Tree & Structural Fix:** When the evidence folder was relocated from `.agents/block-the-slop-v7/` to `block-the-slop-v7/` at repo root in commit `8775cfe`, running the un-updated `scripts/fingerprint.mjs` (which had not yet added `block-the-slop-v7` to its exclusion set) yielded `5956058dcb8c683e7f1af1351cbe2b873bc00150f36df1d142caf275b6feefac`. To prevent evidence commits from perturbing the source code fingerprint, `block-the-slop-v7` is now included in the exclude sets in `scripts/fingerprint.mjs` and `scripts/verify.mjs` (consistent with prior loop kits), and `.prettierignore` isolates the directory so `format:check` passes cleanly.
 
-## 7. Release artifacts
+## 7. Original-run release artifacts
+
+The hashes below identify the original run. The `.output/` paths have since been rebuilt on another checkout and do not contain these original ZIP bytes. The current, freshly verified Chrome ZIP is in `current/`; see `CURRENT-RELEASE.md` for its hash.
 
 | Artifact | Path | Bytes | SHA-256 |
 |---|---|---|---|
@@ -109,22 +112,22 @@ Rule: SHA-256 over sorted repo file names + contents, excluding `.output`, `node
 
 Both zips verified byte-for-byte against the tested-build inventory captured immediately after build + manifest validation, and re-verified unchanged after all browser tests. The Chrome ZIP is the exact build exercised by the 55/55 Chromium E2E suite and the live probes.
 
-## 8. Working-tree state (committed to main, origin/main up to date)
+## 8. Original implementation commits
 
 All 8 implementation and test files are committed across atomic commits `ef01b3f` through `4da2f49`:
 - Modified: `src/pipeline/orchestrator.ts` (`4ed27ca`), `src/presentation/apply-decision.ts` (`ef01b3f`), `tests/e2e/utils.ts` (`a4673ea`), `tests/e2e/rc2-admission-refusal.spec.ts` (`4da2f49`), `tests/e2e/rc-blocker-c-recovery-capacity.spec.ts` (`689c0dc`).
 - New tests: `tests/dom/v7-reservation-lifecycle.test.ts` (`c5e7d75`), `tests/dom/v7-shorts-v2-slot-collapse.test.ts` (`b08bb97`), `tests/e2e/v7-shorts-v2-search-blank-slot.spec.ts` (`b1e773d`).
 - Documentation & evidence: committed in `8775cfe` under `block-the-slop-v7/`.
-- Repository status: `origin/main` is up to date with HEAD.
+- Repository status changes after this report was written; check `git status` for the current branch state. The current release package is documented in `CURRENT-RELEASE.md`.
 
 ## 9. Remaining owner actions for store submission
 
-1. **Tag the release:** The 8 defect/test commits and v7 release evidence are already committed to `main` (HEAD `8775cfe`). The owner can tag the release (e.g. `git tag v1.0.0-v7`).
+1. **Tag the release:** The 8 defect/test commits and V7 release evidence are already committed. Check the current HEAD before creating a release tag.
 2. **Manual Firefox runtime check** (§5.1) if the Firefox ZIP will be submitted to AMO.
-3. **CWS submission (Chrome ZIP only):** upload `.output/block-the-slop-1.0.0-chrome.zip` to the Chrome Web Store dashboard; fill privacy disclosures (no data collection, no remote code, host permissions limited to YouTube surfaces); attach the sources ZIP if requested.
-4. **Re-hash on receipt:** verify the uploaded artifact against the SHA-256 in §7 before publishing.
+3. **CWS submission (Chrome ZIP only):** upload `current/block-the-slop-1.0.0-chrome.zip` to the Chrome Web Store dashboard. Disclose local handling of YouTube website content and browsing activity accurately, even though nothing is transmitted off-device; document no remote code and YouTube-only host access. Attach a matching sources ZIP if requested.
+4. **Re-hash on receipt:** verify the uploaded artifact against the current ZIP SHA-256 in `CURRENT-RELEASE.md` before publishing.
 5. **Post-publish smoke:** install from the store listing and repeat `scripts/live-probe.mjs` expectations manually (extension loads, hides render at zero size, restore works).
 
 ## Verdict
 
-**READY FOR OWNER SUBMISSION.** Both V7 defects are fixed, regression-tested, and covered by a full 20-gate clean pass plus live-YouTube measured evidence. This verdict attests implementation quality and verification completeness — it does not promise Chrome Web Store approval.
+**Original run: READY FOR OWNER SUBMISSION.** Both V7 defects were fixed, regression-tested, and covered by a full 20-gate clean pass plus live-YouTube measured evidence. For the current checkout and its submission ZIP, use `CURRENT-RELEASE.md`. Neither verdict promises Chrome Web Store approval.
