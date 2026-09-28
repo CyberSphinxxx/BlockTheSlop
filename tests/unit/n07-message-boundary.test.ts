@@ -49,6 +49,12 @@ describe('N07 per-type schema: zero-arg types reject payloads', () => {
     'data:clear-corrections',
     'data:reset-stats',
     'review:list',
+    'onboarding:get',
+    'stats:dailyGet',
+    'stats:dailyReset',
+    'miss-review:list',
+    'miss-review:clear',
+    'miss-review:export',
   ];
   for (const type of zeroArg) {
     it(`${type} accepts absent payload`, () => ok(type));

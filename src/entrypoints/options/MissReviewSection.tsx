@@ -89,7 +89,7 @@ export function MissReviewSection({ backend }: { backend: Backend }) {
   return (
     <section className="mt-6 space-y-3 text-sm">
       <div>
-        <h3 className="text-base font-semibold">Missed-video diagnostics</h3>
+        <h3 className="btsl-label-primary text-base font-semibold">Missed-video diagnostics</h3>
         <p className="mt-1 text-xs opacity-70">
           When you mark a video the filter missed, BlockTheSlop records WHY it stayed visible —
           locally only. This is <strong>never used for training</strong>, never sent anywhere, and
@@ -107,7 +107,7 @@ export function MissReviewSection({ backend }: { backend: Backend }) {
           {(entries ?? []).map((entry) => (
             <li
               key={entry.id}
-              className="rounded-lg border border-bts-border bg-bts-panel px-3 py-2"
+              className="btsl-card px-3 py-2"
             >
               <div className="flex items-baseline justify-between gap-2">
                 <span className="min-w-0 truncate font-medium">{entry.title || entry.videoId}</span>

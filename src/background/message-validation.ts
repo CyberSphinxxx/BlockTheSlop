@@ -310,6 +310,9 @@ const PAYLOAD_VALIDATORS: Readonly<Record<string, (payload: unknown) => boolean>
     if (!optString(p['note'], 160)) return false;
     return true;
   },
+  'miss-review:list': absent,
+  'miss-review:clear': absent,
+  'miss-review:export': absent,
 };
 
 function absent(payload: unknown): boolean {
