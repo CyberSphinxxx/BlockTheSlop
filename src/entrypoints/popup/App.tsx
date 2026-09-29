@@ -233,12 +233,12 @@ export function PopupApp({ backend }: { backend: Backend }) {
         {/* Stats card */}
         <section className="btsl-panel btsl-stat" role="region" aria-label="Outcomes today">
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)' }}>
-            <strong style={{ fontSize: '34px', lineHeight: 1, fontWeight: 'var(--fw-strong)' }}>
+            <strong style={{ fontSize: '28px', lineHeight: 1, fontWeight: 'var(--fw-strong)' }}>
               {distinctHiddenCount}
             </strong>
             <span
               style={{
-                fontSize: '20px',
+                fontSize: '18px',
                 fontWeight: 'var(--fw-strong)',
                 color: 'var(--color-text)',
               }}
@@ -246,7 +246,7 @@ export function PopupApp({ backend }: { backend: Backend }) {
               hidden today
             </span>
           </div>
-          <div className="btsl-help" style={{ marginTop: '2px' }}>
+          <div className="btsl-help" style={{ marginTop: '2px', fontSize: '13px' }}>
             {statsNote ??
               `Today (${todayKey}) — ${distinctHiddenCount} distinct videos hidden${
                 distinctWarnedCount > 0 ? ` · ${distinctWarnedCount} distinct videos warned` : ''
@@ -376,9 +376,9 @@ export function PopupApp({ backend }: { backend: Backend }) {
             className="btsl-notice"
             role="status"
             aria-label="Active tab status"
-            style={{ padding: '8px 12px' }}
+            style={{ padding: '6px 10px' }}
           >
-            <span className="btsl-help">
+            <span className="btsl-help" style={{ fontSize: '13px' }}>
               Not available here — BlockTheSlop only filters youtube.com pages.
             </span>
           </div>
@@ -387,7 +387,7 @@ export function PopupApp({ backend }: { backend: Backend }) {
             className="btsl-notice btsl-bar"
             role="status"
             aria-label="Active tab status"
-            style={{ padding: '8px 12px' }}
+            style={{ padding: '6px 10px' }}
           >
             <span>Active on YouTube · {tabStatus.surface}</span>
             <span className="btsl-help">{tabStatus.distinctHidden} on page</span>

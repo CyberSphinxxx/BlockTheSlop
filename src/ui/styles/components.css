@@ -19,7 +19,7 @@ body:has(.btsl-popup),
   max-width: 320px;
   margin: 0;
   padding: 0;
-  overflow-x: hidden;
+  overflow: hidden;
   scrollbar-gutter: auto;
 }
 
@@ -567,11 +567,36 @@ select option {
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-panel);
   overflow: hidden;
+  box-sizing: border-box;
 }
 .btsl-popup__body {
-  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  padding: 8px 12px 10px;
   display: grid;
-  gap: var(--sp-3);
+  gap: 8px;
+}
+.btsl-popup .btsl-panel {
+  padding: 6px 10px;
+}
+.btsl-popup .btsl-stat {
+  padding: 6px 10px;
+}
+.btsl-popup .btsl-row {
+  padding: 2px 0;
+}
+.btsl-popup .btsl-select select {
+  min-height: 26px;
+  padding: 2px 24px 2px 8px;
+  font-size: 15px;
+}
+.btsl-popup .btsl-select::after {
+  top: 9px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+}
+.btsl-popup .btsl-btn {
+  min-height: 32px;
+  padding: 4px 10px;
 }
 .btsl-bar {
   display: flex;
@@ -579,7 +604,7 @@ select option {
   align-items: center;
 }
 .btsl-wordmark {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: var(--fw-strong);
   line-height: 1;
 }
