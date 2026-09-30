@@ -1,4 +1,4 @@
-# BlockTheSlop — AI Slop Blocker for YouTube
+# BlockTheSlop: AI Slop Blocker for YouTube
 
 A privacy-first, local-first browser extension that filters AI-generated, automated, repetitive, and low-quality ("slop") YouTube content — while keeping every automatic decision explainable and reversible.
 
