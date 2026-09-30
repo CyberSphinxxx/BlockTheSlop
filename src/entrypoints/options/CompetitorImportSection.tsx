@@ -15,7 +15,7 @@ import { Button } from '@/ui/components/primitives';
  * unresolved channel names), and rules change only when the user presses
  * Apply. Apply persists first and re-renders on success; a persistence
  * failure restores the pre-apply snapshot (rollback) with a visible error.
- * Remote lists are never fetched — this section reads one local file.
+ * Remote lists are never fetched; this section reads one local file.
  */
 
 type Notice = { kind: 'error' | 'info'; text: string } | null;
@@ -25,7 +25,7 @@ export function CompetitorImportSection({
   onApply,
 }: {
   rules: UserRules;
-  /** Persist merged rules; return false (or throw) on failure — the caller rolls back its own state. */
+  /** Persist merged rules; return false (or throw) on failure; the caller rolls back its own state. */
   onApply: (next: UserRules) => Promise<boolean>;
 }) {
   const [preview, setPreview] = useState<ImportPreviewReport | null>(null);
@@ -124,7 +124,7 @@ export function CompetitorImportSection({
       {preview !== null && (
         <div className="space-y-2 rounded-lg border border-bts-border bg-bts-panel px-3 py-2 text-xs">
           <div className="font-semibold">
-            Preview: {preview.format} — {preview.fileName}
+            Preview: {preview.format} ({preview.fileName})
           </div>
           {preview.isEmpty ? (
             <p className="opacity-70">
