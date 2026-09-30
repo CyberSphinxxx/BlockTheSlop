@@ -7,8 +7,8 @@ import { Button } from '@/ui/components/primitives';
  * V7-07: local miss-review diagnostics (Review tab).
  *
  * These entries explain why the automatic filter did NOT hide a video the
- * user has marked as AI/slop. They are private local diagnostics — never
- * training data, never sent anywhere. Export produces a local JSON snapshot
+ * user has marked as AI/slop. They are private local diagnostics, never
+ * training data, and never sent anywhere. Export produces a local JSON snapshot
  * only on explicit user action; clearing requires explicit confirmation.
  */
 
@@ -91,9 +91,9 @@ export function MissReviewSection({ backend }: { backend: Backend }) {
       <div>
         <h3 className="btsl-label-primary text-base font-semibold">Missed-video diagnostics</h3>
         <p className="mt-1 text-xs opacity-70">
-          When you mark a video the filter missed, BlockTheSlop records WHY it stayed visible —
-          locally only. This is <strong>never used for training</strong>, never sent anywhere, and
-          stays on this device until you clear it.
+          When you mark a video the filter missed, BlockTheSlop records why it stayed visible. This
+          diagnostic info <strong>stays on this device</strong>, is{' '}
+          <strong>never used for training</strong>, and is never uploaded anywhere.
         </p>
       </div>
 
@@ -105,17 +105,14 @@ export function MissReviewSection({ backend }: { backend: Backend }) {
       ) : (
         <ul className="space-y-2">
           {(entries ?? []).map((entry) => (
-            <li
-              key={entry.id}
-              className="btsl-card px-3 py-2"
-            >
+            <li key={entry.id} className="btsl-card px-3 py-2">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="min-w-0 truncate font-medium">{entry.title || entry.videoId}</span>
                 <span className="shrink-0 text-xs opacity-60">seen {entry.sightingCount}×</span>
               </div>
               <div className="mt-0.5 text-xs opacity-80">
                 <span className="font-semibold">{REASON_LABELS[entry.reason]}</span>
-                {' — '}
+                {': '}
                 {REASON_HINTS[entry.reason]}
               </div>
               <div className="mt-0.5 text-xs opacity-60">
