@@ -53,7 +53,9 @@ pnpm-debug.log*
 archives/
 !archives/README.md
 *-kit/
-.agents/
+.agents/*
+!.agents/skills/
+!.agents/skills/**
 .freebuff/
 .kilo/
 
