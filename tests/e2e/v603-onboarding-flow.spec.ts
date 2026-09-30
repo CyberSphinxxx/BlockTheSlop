@@ -55,12 +55,18 @@ test.describe('onboarding flow end-to-end', () => {
     await onboarding.locator('label').filter({ hasText: /High/ }).first().click();
     await onboarding.getByRole('button', { name: 'Continue' }).click();
 
-    // Step 6: review — verify the summary mentions the discovery answer.
+    // Step 6: phrases (optional) — continue.
+    await expect(
+      onboarding.getByRole('heading', { name: /block specific phrases/i }),
+    ).toBeVisible();
+    await onboarding.getByRole('button', { name: 'Continue' }).click();
+
+    // Step 7: review — verify the summary mentions the discovery answer.
     await expect(onboarding.getByRole('heading', { name: /review your choices/i })).toBeVisible();
     await expect(onboarding.getByText(/Friend or family/)).toBeVisible();
     await onboarding.getByRole('button', { name: 'Apply' }).click();
 
-    // Step 7: ready.
+    // Step 8: ready.
     await expect(onboarding.getByRole('heading', { name: /all set/i })).toBeVisible({
       timeout: 15_000,
     });
