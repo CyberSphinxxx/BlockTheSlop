@@ -4,6 +4,7 @@ import type { CategoryAction, FilterMode, UserSettings } from '@/domain/settings
 import { validateSettings } from '@/domain/settings';
 import type { DailyStatsState } from '@/domain/stats-daily';
 import { dayBucketFor } from '@/domain/stats-daily';
+import type { LocalStats } from '@/domain/stats';
 import { SegmentedControl } from '@/ui/components/primitives';
 import type { Backend } from '@/ui/messaging';
 import { applyThemeToDocument } from '@/ui/theme';
@@ -60,6 +61,7 @@ interface StatusResponse {
 export function PopupApp({ backend }: { backend: Backend }) {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [daily, setDaily] = useState<DailyStatsState | null>(null);
+  const [localStats, setLocalStats] = useState<LocalStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tabStatus, setTabStatus] = useState<TabStatus>({ kind: 'checking' });
   // The local day is computed ONCE per popup mount (stable across re-renders).
@@ -70,9 +72,14 @@ export function PopupApp({ backend }: { backend: Backend }) {
 
   const refresh = useCallback(async () => {
     try {
-      const [s, d] = await Promise.all([backend.getSettings(), backend.getDailyStats()]);
+      const [s, d, ls] = await Promise.all([
+        backend.getSettings(),
+        backend.getDailyStats(),
+        backend.getStats(),
+      ]);
       setSettings(s);
       setDaily(d);
+      setLocalStats(ls);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -214,9 +221,18 @@ export function PopupApp({ backend }: { backend: Backend }) {
         )}
 
         <header className="btsl-bar">
-          <h1 className="btsl-wordmark" style={{ margin: 0 }}>
-            BlockTheSlop
-          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <img
+              src={browser.runtime.getURL('/icon/32.png')}
+              alt=""
+              width={20}
+              height={20}
+              style={{ borderRadius: '4px', display: 'block' }}
+            />
+            <h1 className="btsl-wordmark" style={{ margin: 0 }}>
+              BlockTheSlop
+            </h1>
+          </div>
           <SegmentedControl<'on' | 'off'>
             legend=""
             name="enabled"
@@ -234,7 +250,7 @@ export function PopupApp({ backend }: { backend: Backend }) {
         <section className="btsl-panel btsl-stat" role="region" aria-label="Outcomes today">
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)' }}>
             <strong style={{ fontSize: '28px', lineHeight: 1, fontWeight: 'var(--fw-strong)' }}>
-              {distinctHiddenCount}
+              {localStats?.hidden ?? (todayBucket ? todayBucket.hides : 0)}
             </strong>
             <span
               style={{
@@ -243,14 +259,23 @@ export function PopupApp({ backend }: { backend: Backend }) {
                 color: 'var(--color-text)',
               }}
             >
-              hidden today
+              videos blocked
             </span>
           </div>
-          <div className="btsl-help" style={{ marginTop: '2px', fontSize: '13px' }}>
+          <div
+            className="btsl-help"
+            style={{
+              marginTop: '2px',
+              fontSize: '13px',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
             {statsNote ??
-              `Today (${todayKey}) — ${distinctHiddenCount} distinct videos hidden${
-                distinctWarnedCount > 0 ? ` · ${distinctWarnedCount} distinct videos warned` : ''
-              } on this device`}
+              (distinctWarnedCount > 0
+                ? `${distinctHiddenCount} distinct videos hidden · ${distinctWarnedCount} warned on this device`
+                : `${distinctHiddenCount} distinct videos hidden on this device`)}
           </div>
         </section>
 
@@ -332,7 +357,12 @@ export function PopupApp({ backend }: { backend: Backend }) {
 
         {/* Notice / Session recovery banner */}
         {tabHides[0] ? (
-          <div className="btsl-notice btsl-bar" role="region" aria-label="Session recovery">
+          <div
+            className="btsl-notice btsl-bar"
+            role="region"
+            aria-label="Session recovery"
+            style={{ padding: '4px 8px' }}
+          >
             <span
               style={{
                 overflow: 'hidden',
@@ -376,10 +406,10 @@ export function PopupApp({ backend }: { backend: Backend }) {
             className="btsl-notice"
             role="status"
             aria-label="Active tab status"
-            style={{ padding: '6px 10px' }}
+            style={{ padding: '4px 8px' }}
           >
             <span className="btsl-help" style={{ fontSize: '13px' }}>
-              Not available here — BlockTheSlop only filters youtube.com pages.
+              Not available here · youtube.com only
             </span>
           </div>
         ) : tabStatus.kind === 'active' ? (
@@ -387,7 +417,7 @@ export function PopupApp({ backend }: { backend: Backend }) {
             className="btsl-notice btsl-bar"
             role="status"
             aria-label="Active tab status"
-            style={{ padding: '6px 10px' }}
+            style={{ padding: '4px 8px' }}
           >
             <span>Active on YouTube · {tabStatus.surface}</span>
             <span className="btsl-help">{tabStatus.distinctHidden} on page</span>
