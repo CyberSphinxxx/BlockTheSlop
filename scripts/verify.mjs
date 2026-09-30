@@ -124,6 +124,7 @@ const EXCLUDED_DIRS = new Set([
   '.git',
   '.freebuff',
   '.agents',
+  'archives',
   'block-the-slop-upgrade-agent-kit',
   'block-the-slop-next-loop-audit-kit',
   'block-the-slop-v4-loop-kit',
