@@ -42,7 +42,9 @@ test.describe('daily stats over the real message channel', () => {
     // Open the REAL popup against the REAL background.
     const popup = await context.newPage();
     await popup.goto(`chrome-extension://${extensionId}/popup.html`);
-    await expect(popup.getByText(/Today \(/)).toBeVisible({ timeout: 15_000 });
+    await expect(popup.getByRole('region', { name: 'Outcomes today' })).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(popup.getByText(/2\s*distinct videos hidden/)).toBeVisible({
       timeout: 15_000,
     });
