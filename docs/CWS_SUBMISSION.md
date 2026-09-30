@@ -1,4 +1,4 @@
-# BlockTheSlop — Chrome Web Store Submission Package
+# BlockTheSlop: Chrome Web Store Submission Package
 
 Version 1.0.0 · prepared 2026-09-27 · artifact: `.output/block-the-slop-1.0.0-chrome.zip`
 (hash recorded in `.agents/block-the-slop-v7/RELEASE_EVIDENCE.json`)
@@ -10,7 +10,7 @@ owner must complete are listed at the end.
 
 ### Name (≤75 chars; manifest limit)
 
-`BlockTheSlop — AI Slop Blocker for YouTube` (42 characters)
+`BlockTheSlop: AI Slop Blocker for YouTube` (41 characters)
 
 ### Short description (≤132 chars; mirrors manifest)
 
