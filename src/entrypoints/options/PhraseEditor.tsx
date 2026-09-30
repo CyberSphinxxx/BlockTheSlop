@@ -5,10 +5,10 @@ import { previewPhraseRule, type PhrasePreviewResult } from '@/domain/rule-previ
 /**
  * CFG-05 + V7-09: literal phrase block rules with a SAFE PREVIEW.
  *
- * - Phrases are LITERAL text (no wildcards, no regex — user input is never
+ * - Phrases are LITERAL text (no wildcards, no regex: user input is never
  *   interpreted as a pattern).
  * - Two match modes: substring (legacy behavior) and whole word
- *   (Unicode-aware boundaries — Filipino, accents, emoji, punctuation).
+ *   (Unicode-aware boundaries: Filipino, accents, emoji, punctuation).
  * - While typing, the rule is previewed against a bounded LOCAL sample with
  *   an honest denominator, estimated matches, and warnings for accidental
  *   broad matches and likely human-made titles it would also hide.
@@ -35,7 +35,7 @@ export function PhraseEditor({
     [phrases, phraseRules],
   );
 
-  // Live preview via useMemo (pure, bounded 24-item sample — no effect, no
+  // Live preview via useMemo (pure, bounded 24-item sample without effect or
   // cascading renders; the eslint react-hooks rule forbids setState-in-effect).
   const preview: PhrasePreviewResult | null = useMemo(() => {
     const phrase = draft.trim();
@@ -64,8 +64,8 @@ export function PhraseEditor({
     <div className="mt-3">
       <h3 className="text-xs font-semibold uppercase opacity-60">Blocked phrases</h3>
       <p className="mb-2 text-xs opacity-70">
-        Hide any video whose title contains one of these phrases. Literal text only — no wildcards,
-        no regex. Checked before your Not-AI corrections.
+        Hide any video whose title contains these words. Uses exact text matching (no wildcards or
+        regular expressions). Checked before your Not-AI corrections.
       </p>
       <form
         className="flex flex-wrap items-center gap-2"
