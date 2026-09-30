@@ -31,7 +31,7 @@ export default defineConfig({
     },
   },
   manifest: {
-    name: 'BlockTheSlop — AI Slop Blocker for YouTube',
+    name: 'BlockTheSlop: AI Slop Blocker for YouTube',
     description: MANIFEST_DESCRIPTION,
     version: '1.0.0',
     // Firefox (N05): a stable add-on id is required for permanent sideload
