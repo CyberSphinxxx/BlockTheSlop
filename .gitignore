@@ -51,8 +51,7 @@ pnpm-debug.log*
 
 # Agent kits, workspaces & archives
 archives/
-block-the-slop-upgrade-agent-kit/
-block-the-slop-next-loop-audit-kit/
+!archives/README.md
 *-kit/
 .agents/
 .freebuff/
