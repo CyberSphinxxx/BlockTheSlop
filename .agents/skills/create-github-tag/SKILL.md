@@ -24,27 +24,34 @@ Parse the version tag requested by the user (for example `v1.0.0`). The tag must
 ### 2. Verify Repository State
 
 Run:
+
 ```bash
 git status
 ```
+
 Ensure the working tree is clean or help the user commit required changes before tagging.
 Check existing tags:
+
 ```bash
 git tag -l <tag_name>
 ```
+
 If the tag already exists, alert the user before proceeding or overwriting.
 
 ### 3. Create the Git Tag
 
 Create an annotated git tag:
+
 ```bash
 git tag -a <tag_name> -m "Release <tag_name>"
 ```
 
 Notify the user that pushing the tag will trigger the GitHub Actions release workflow:
+
 ```bash
 git push origin <tag_name>
 ```
+
 Once pushed, `.github/workflows/release.yml` will run all tests, build the Chrome and Firefox extensions, package the zip archives, and attach `block-the-slop-*-chrome.zip` and `block-the-slop-*-firefox.zip` directly to the GitHub Release.
 
 ### 4. Generate Comprehensive Release Notes in Chat
@@ -52,6 +59,7 @@ Once pushed, `.github/workflows/release.yml` will run all tests, build the Chrom
 Inspect recent git history (`git log`) and feature documents to compose complete release notes for the version.
 
 Present the release notes directly in the conversation in a raw markdown code block or plain markdown according to the constraints:
+
 - Strictly no emojis.
 - Strictly no emdashes (replace any emdash with a standard hyphen `-`).
 - Sections should cover:
