@@ -15,6 +15,9 @@ import {
   type Sensitivity,
 } from '@/domain/onboarding';
 import { validateSettings } from '@/domain/settings';
+import { RuleStore } from '@/storage/rule-store';
+import { BrowserKVStore } from '@/storage/db';
+import { applyRuleMutation } from '@/domain/rules';
 
 /**
  * Onboarding flow (V6-03…V6-07).
@@ -69,7 +72,14 @@ const TREATMENT_HINTS: Record<OnboardingTreatment, { label: string; hint: string
 };
 
 type StepId =
-  'welcome' | 'discovery' | 'content' | 'treatment' | 'sensitivity' | 'review' | 'ready';
+  | 'welcome'
+  | 'discovery'
+  | 'content'
+  | 'treatment'
+  | 'sensitivity'
+  | 'phrases'
+  | 'review'
+  | 'ready';
 
 const STEP_ORDER: readonly StepId[] = [
   'welcome',
@@ -77,6 +87,7 @@ const STEP_ORDER: readonly StepId[] = [
   'content',
   'treatment',
   'sensitivity',
+  'phrases',
   'review',
   'ready',
 ];
@@ -89,6 +100,8 @@ export function OnboardingApp({ backend }: { backend: Backend }) {
   const [alreadyCompleted, setAlreadyCompleted] = useState(false);
   const [step, setStep] = useState<StepId>('welcome');
   const [draft, setDraft] = useState<OnboardingDraft>(defaultOnboardingDraft());
+  const [phraseInput, setPhraseInput] = useState('');
+  const [phraseError, setPhraseError] = useState<string | null>(null);
   const [applyState, setApplyState] = useState<'idle' | 'saving' | 'error'>('idle');
   const [skipState, setSkipState] = useState<'idle' | 'saving' | 'error'>('idle');
   const headingRef = useRef<HTMLHeadingElement | null>(null);
@@ -131,7 +144,10 @@ export function OnboardingApp({ backend }: { backend: Backend }) {
       ([settings, state]) => {
         if (cancelled) return;
         cleanup = applyThemeToDocument(document, settings.theme);
-        setAlreadyCompleted(state.completed);
+        const isRerun =
+          typeof window !== 'undefined' &&
+          new URLSearchParams(window.location.search).get('rerun') === 'true';
+        setAlreadyCompleted(isRerun ? false : state.completed);
         setLoaded(true);
       },
       (e: unknown) => {
@@ -208,6 +224,19 @@ export function OnboardingApp({ backend }: { backend: Backend }) {
         }
         // One atomic settings transaction (field-level PATCH, validated).
         await backend.saveSettings(patch);
+        if (draft.blockedPhrases && draft.blockedPhrases.length > 0) {
+          try {
+            const store = new RuleStore(new BrowserKVStore());
+            const existingRules = await store.load();
+            let nextRules = existingRules;
+            for (const phrase of draft.blockedPhrases) {
+              nextRules = applyRuleMutation(nextRules, { kind: 'block-phrase', phrase });
+            }
+            await store.save(nextRules);
+          } catch {
+            // Non-fatal if rule storage fails in pure test environment
+          }
+        }
         await backend.completeOnboarding(draft.discoverySource);
         setApplyState('idle');
         setStep('ready');
@@ -233,6 +262,12 @@ export function OnboardingApp({ backend }: { backend: Backend }) {
     );
     lines.push(`Treatment: ${TREATMENT_HINTS[draft.treatment].label}`);
     lines.push(`Sensitivity: ${SENSITIVITY_HINTS[draft.sensitivity].label}`);
+    const phrases = draft.blockedPhrases ?? [];
+    lines.push(
+      phrases.length === 0
+        ? 'Blocked phrases: none added (optional)'
+        : `Blocked phrases: ${phrases.map((p) => `“${p}”`).join(', ')}`,
+    );
     if (draft.discoverySource !== undefined) {
       lines.push(
         `Found us via: ${DISCOVERY_LABELS[draft.discoverySource]} (stored only on this device)`,
@@ -262,12 +297,20 @@ export function OnboardingApp({ backend }: { backend: Backend }) {
       <div className="mx-auto max-w-2xl p-8" role="status">
         <h1 className="text-2xl font-bold">Setup already completed</h1>
         <p className="mt-3 text-sm">
-          Your filtering settings are unchanged. You can revisit choices in Settings.
+          Your filtering settings are unchanged. You can revisit choices in Settings or re-run the
+          setup wizard anytime.
         </p>
-        <div className="mt-6 flex gap-2">
-          <Button variant="primary" onClick={openOptions}>
-            Open Settings
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Button
+            variant="primary"
+            onClick={() => {
+              setAlreadyCompleted(false);
+              setStep('welcome');
+            }}
+          >
+            Run setup again
           </Button>
+          <Button onClick={openOptions}>Open Settings</Button>
           <Button onClick={openYouTube}>Open YouTube</Button>
         </div>
       </div>
@@ -300,15 +343,25 @@ export function OnboardingApp({ backend }: { backend: Backend }) {
         </div>
       )}
 
-      <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold outline-none">
-        {step === 'welcome' && 'Welcome to BlockTheSlop'}
-        {step === 'discovery' && 'How did you find us? (optional)'}
-        {step === 'content' && 'What do you want filtered on YouTube?'}
-        {step === 'treatment' && 'What should happen to matched videos?'}
-        {step === 'sensitivity' && 'How aggressively should we filter?'}
-        {step === 'review' && 'Review your choices'}
-        {step === 'ready' && "You're all set"}
-      </h1>
+      <div className="mb-4 flex items-center gap-3">
+        <img
+          src={browser.runtime.getURL('/icon/48.png')}
+          alt="BlockTheSlop logo"
+          width={36}
+          height={36}
+          style={{ borderRadius: '8px' }}
+        />
+        <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold outline-none">
+          {step === 'welcome' && 'Welcome to BlockTheSlop'}
+          {step === 'discovery' && 'How did you find us? (optional)'}
+          {step === 'content' && 'What do you want filtered on YouTube?'}
+          {step === 'treatment' && 'What should happen to matched videos?'}
+          {step === 'sensitivity' && 'How aggressively should we filter?'}
+          {step === 'phrases' && 'Block specific phrases (optional)'}
+          {step === 'review' && 'Review your choices'}
+          {step === 'ready' && "You're all set"}
+        </h1>
+      </div>
 
       {step === 'welcome' && (
         <section className="mt-4 space-y-3 text-sm">
@@ -448,6 +501,144 @@ export function OnboardingApp({ backend }: { backend: Backend }) {
             Plain tradeoff: the higher the sensitivity, the more harmless videos get hidden — all
             recoverable. Advanced users can later choose Aggressive in Settings.
           </p>
+          <div className="flex gap-2 pt-2">
+            <Button onClick={goBack}>Back</Button>
+            <Button variant="primary" onClick={goNext}>
+              Continue
+            </Button>
+          </div>
+        </section>
+      )}
+
+      {step === 'phrases' && (
+        <section className="mt-4 space-y-4 text-sm">
+          <p>
+            Block specific words or phrases in video titles (e.g. &ldquo;sora&rdquo;, &ldquo;ai
+            song&rdquo;, &ldquo;ai cover&rdquo;). Matching is case-insensitive and evaluated locally
+            on the title text.
+          </p>
+
+          <div>
+            <span className="text-xs font-semibold uppercase opacity-70">
+              Popular suggestions (click to add)
+            </span>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {['sora', 'ai cover', 'ai song', 'ai music', 'chatgpt', 'suno'].map((sug) => {
+                const isAdded = (draft.blockedPhrases ?? []).some(
+                  (p) => p.toLowerCase() === sug.toLowerCase(),
+                );
+                return (
+                  <button
+                    key={sug}
+                    type="button"
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                      isAdded
+                        ? 'bg-[var(--color-accent)] text-black font-bold'
+                        : 'border border-black/10 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/10'
+                    }`}
+                    onClick={() => {
+                      const current = draft.blockedPhrases ?? [];
+                      if (isAdded) {
+                        update({
+                          blockedPhrases: current.filter(
+                            (p) => p.toLowerCase() !== sug.toLowerCase(),
+                          ),
+                        });
+                      } else {
+                        update({ blockedPhrases: [...current, sug] });
+                      }
+                    }}
+                  >
+                    {isAdded ? `✓ “${sug}”` : `+ “${sug}”`}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <span className="text-xs font-semibold uppercase opacity-70">Custom phrase</span>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="e.g. deepfake, chatgpt"
+                value={phraseInput}
+                onChange={(e) => setPhraseInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const trimmed = phraseInput.trim();
+                    if (trimmed.length > 0) {
+                      const current = draft.blockedPhrases ?? [];
+                      if (current.some((p) => p.toLowerCase() === trimmed.toLowerCase())) {
+                        setPhraseError('That phrase is already added.');
+                      } else {
+                        setPhraseError(null);
+                        update({ blockedPhrases: [...current, trimmed] });
+                        setPhraseInput('');
+                      }
+                    }
+                  }
+                }}
+                className="flex-1 rounded border border-black/20 dark:border-white/20 bg-transparent px-3 py-1.5 text-sm"
+                aria-label="Phrase to block"
+              />
+              <Button
+                onClick={() => {
+                  const trimmed = phraseInput.trim();
+                  if (trimmed.length > 0) {
+                    const current = draft.blockedPhrases ?? [];
+                    if (current.some((p) => p.toLowerCase() === trimmed.toLowerCase())) {
+                      setPhraseError('That phrase is already added.');
+                    } else {
+                      setPhraseError(null);
+                      update({ blockedPhrases: [...current, trimmed] });
+                      setPhraseInput('');
+                    }
+                  }
+                }}
+                disabled={phraseInput.trim().length === 0}
+              >
+                Add
+              </Button>
+            </div>
+            {phraseError && <p className="text-xs text-[var(--color-danger)]">{phraseError}</p>}
+          </div>
+
+          {(draft.blockedPhrases ?? []).length > 0 && (
+            <div className="rounded border border-black/10 dark:border-white/10 p-3 space-y-2">
+              <span className="text-xs font-semibold uppercase opacity-70">
+                Phrases you chose to block ({(draft.blockedPhrases ?? []).length})
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {(draft.blockedPhrases ?? []).map((phrase) => (
+                  <span
+                    key={phrase}
+                    className="inline-flex items-center gap-1.5 rounded bg-black/5 dark:bg-white/10 px-2.5 py-1 text-xs font-medium"
+                  >
+                    <span>&ldquo;{phrase}&rdquo;</span>
+                    <button
+                      type="button"
+                      aria-label={`Remove phrase ${phrase}`}
+                      className="opacity-60 hover:opacity-100"
+                      onClick={() =>
+                        update({
+                          blockedPhrases: (draft.blockedPhrases ?? []).filter((p) => p !== phrase),
+                        })
+                      }
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <p className="text-xs opacity-60">
+            You can always add, edit, or remove phrases later in Settings → Blocked phrases.
+          </p>
+
           <div className="flex gap-2 pt-2">
             <Button onClick={goBack}>Back</Button>
             <Button variant="primary" onClick={goNext}>
