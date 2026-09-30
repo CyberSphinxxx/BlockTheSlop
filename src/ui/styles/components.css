@@ -1,26 +1,43 @@
-/* ===== SCROLLBAR STYLING & OPTIONS LAYOUT STABILITY ===== */
+/* ===== SCROLLBAR STYLING & FULL-PAGE LAYOUT STABILITY ===== */
 html {
   scrollbar-width: thin;
   scrollbar-color: var(--color-rule) transparent;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
-/* Prevent options page layout shift when switching between long/short tabs */
-html:has(.btsl-options),
-.btsl-options-page {
-  scrollbar-gutter: stable;
+/* Ensure options and onboarding pages have a permanent scrollbar gutter so page never shifts */
+html:has(.btsl-options-page),
+html:has(.btsl-options-container),
+body.btsl-options-page {
+  overflow-y: scroll !important;
+  scrollbar-gutter: stable !important;
 }
 
 /* Popup window sizing: strict 320px fit with no scrollbars or gutters */
 html:has(.btsl-popup),
+html:has(.btsl-popup-page),
 body:has(.btsl-popup),
-.btsl-popup-page,
-.btsl-popup-page html {
-  width: 320px;
-  max-width: 320px;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  scrollbar-gutter: auto;
+body.btsl-popup-page,
+.btsl-popup-page {
+  width: 320px !important;
+  max-width: 320px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+  scrollbar-gutter: auto !important;
+}
+
+html:has(.btsl-popup) ::-webkit-scrollbar,
+html:has(.btsl-popup-page) ::-webkit-scrollbar,
+body.btsl-popup-page ::-webkit-scrollbar,
+.btsl-popup-page ::-webkit-scrollbar,
+.btsl-popup ::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 ::-webkit-scrollbar {
@@ -570,33 +587,33 @@ select option {
   box-sizing: border-box;
 }
 .btsl-popup__body {
-  padding: 8px 12px 10px;
+  padding: 6px 10px 8px;
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 .btsl-popup .btsl-panel {
-  padding: 6px 10px;
+  padding: 5px 8px;
 }
 .btsl-popup .btsl-stat {
-  padding: 6px 10px;
+  padding: 5px 8px;
 }
 .btsl-popup .btsl-row {
-  padding: 2px 0;
+  padding: 1.5px 0;
 }
 .btsl-popup .btsl-select select {
-  min-height: 26px;
-  padding: 2px 24px 2px 8px;
-  font-size: 15px;
+  min-height: 24px;
+  padding: 2px 22px 2px 6px;
+  font-size: 14px;
 }
 .btsl-popup .btsl-select::after {
-  top: 9px;
+  top: 8px;
   right: 8px;
   width: 6px;
   height: 6px;
 }
 .btsl-popup .btsl-btn {
-  min-height: 32px;
-  padding: 4px 10px;
+  min-height: 30px;
+  padding: 4px 8px;
 }
 .btsl-bar {
   display: flex;
