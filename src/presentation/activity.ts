@@ -25,8 +25,14 @@ export class HideActivityNotice {
   private escapeHandler: ((e: KeyboardEvent) => void) | undefined;
   /** V6-10: current chip position (default bottom-right, 'off' removes it). */
   private position: ActivityIndicatorPosition = 'bottom-right';
+  private dismissed = false;
   onRestore?: (element: Element, signature: string) => void;
   onBlockChannel?: (entry: Omit<SessionRecoveryEntry, 'element'>) => void;
+
+  /** Reset dismissed state so the notice can show again if needed. */
+  resetDismissed(): void {
+    this.dismissed = false;
+  }
 
   /** V6-10: update the chip position live (Off removes the chip entirely). */
   setPosition(position: ActivityIndicatorPosition): void {
@@ -60,6 +66,9 @@ export class HideActivityNotice {
   }
 
   update(): void {
+    if (this.dismissed) {
+      return;
+    }
     const ids = new Set<string>();
     // Query both explicit hidden state and gap-free collapsed items
     for (const card of document.querySelectorAll(`[${ATTR_STATE}="hidden"], [data-bts-collapse]`)) {
@@ -97,7 +106,31 @@ export class HideActivityNotice {
       'aria-label',
       `${count} video${count === 1 ? '' : 's'} hidden on this page. Click to review or restore.`,
     );
-    notice.textContent = `${count} video${count === 1 ? '' : 's'} hidden · Review`;
+
+    let label = notice.querySelector<HTMLElement>('.bts-activity-label');
+    if (!label) {
+      notice.textContent = '';
+      label = document.createElement('span');
+      label.className = 'bts-activity-label';
+      notice.appendChild(label);
+
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'bts-activity-close';
+      closeBtn.setAttribute('aria-label', 'Dismiss notification');
+      closeBtn.title = 'Dismiss';
+      closeBtn.innerHTML =
+        '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg>';
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.dismissed = true;
+        this.clear();
+      });
+      notice.appendChild(closeBtn);
+    }
+    label.textContent = `${count} video${count === 1 ? '' : 's'} hidden · Review`;
+
     if (!this.notice) {
       notice.addEventListener('click', (e) => {
         e.stopPropagation();
