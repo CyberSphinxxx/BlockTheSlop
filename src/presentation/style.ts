@@ -31,13 +31,15 @@ export const PRESENTATION_CSS = `
    Extension-owned surfaces recolor via CSS custom properties. The content
    script sets data-bts-theme on <html> from settings; 'system' keeps the
    attribute absent so the host page's own scheme applies. */
-:root { --bts-bg: rgba(120,120,120,0.14); --bts-fg: currentColor; }
-[data-bts-theme="dark"] {
-  --bts-bg: rgba(32,32,36,0.92);
-  --bts-fg: #f1f1f1;
+:root { --bts-bg: rgba(30,30,34,0.92); --bts-fg: #f4f4f5; }
+[data-bts-theme="dark"],
+html[dark] {
+  --bts-bg: rgba(24,24,27,0.95);
+  --bts-fg: #f4f4f5;
 }
-[data-bts-theme="light"] {
-  --bts-bg: rgba(255,255,255,0.94);
+[data-bts-theme="light"],
+html:not([dark]) {
+  --bts-bg: rgba(255,255,255,0.95);
   --bts-fg: #0f0f0f;
 }
 
@@ -96,25 +98,38 @@ export const PRESENTATION_CSS = `
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin: 4px 0 0;
-  padding: 4px 8px;
-  border-radius: 8px;
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border-radius: 6px;
   background: var(--bts-bg);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   color: var(--bts-fg);
-  font: 500 13px/1.4 "Roboto", "Segoe UI", sans-serif;
+  font: 500 12px/1.4 "Barlow Semi Condensed", "Roboto", "Segoe UI", sans-serif;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   pointer-events: auto;
 }
 .bts-warn-marker .bts-warn-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #ffbe0b;
+  color: #111;
   font-weight: 700;
   font-size: 11px;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.bts-warn-marker .bts-overlay-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.bts-warn-marker .bts-overlay-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .bts-warn-marker .bts-why-details {
   flex-basis: 100%;
   color: var(--bts-fg);
   font-weight: 400;
+  font-size: 11px;
+  line-height: 1.5;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -127,22 +142,31 @@ export const PRESENTATION_CSS = `
   min-width: 24px;
   padding: 4px 10px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   color: inherit;
   font: inherit;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
-.bts-button:hover { background: rgba(255, 255, 255, 0.28); }
+.bts-button:hover { background: rgba(255, 255, 255, 0.25); border-color: rgba(255, 255, 255, 0.35); }
 .bts-button:focus-visible {
-  outline: 2px solid currentColor;
+  outline: 2px solid #ffbe0b;
   outline-offset: 1px;
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.25);
 }
-.bts-warn-marker .bts-button { background: rgba(0, 0, 0, 0.08); border-color: rgba(0, 0, 0, 0.2); }
-[data-bts-theme="dark"] .bts-warn-marker .bts-button {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.3);
+.bts-warn-marker .bts-button { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.18); }
+[data-bts-theme="light"] .bts-warn-marker,
+html:not([dark]) .bts-warn-marker {
+  border-color: rgba(0, 0, 0, 0.15);
+}
+[data-bts-theme="light"] .bts-warn-marker .bts-button,
+html:not([dark]) .bts-warn-marker .bts-button {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.18);
+  color: #0f0f0f;
 }
 
 /* Accessible status text: never color-only */
@@ -182,16 +206,48 @@ ytd-reel-item-renderer[data-bts-collapse] {
 /* ---- Session recovery interactive panel ---- */
 .bts-activity-notice {
   position: fixed; right: 16px; bottom: 16px; z-index: 2147483646;
-  max-width: min(280px, calc(100vw - 32px)); padding: 6px 12px;
-  border-radius: 999px; background: rgba(32,43,61,.94); color: #fff;
-  box-shadow: 0 2px 10px rgba(0,0,0,.25);
-  font: 500 12px/1.3 "Roboto", "Segoe UI", sans-serif;
+  max-width: min(280px, calc(100vw - 32px)); padding: 6px 10px 6px 14px;
+  border-radius: 999px; background: rgba(24, 24, 27, 0.95); color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  font: 600 12px/1.3 "Barlow Semi Condensed", "Roboto", "Segoe UI", sans-serif;
+  letter-spacing: 0.02em;
   pointer-events: auto;
   cursor: pointer;
   user-select: none;
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: 8px;
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
-.bts-activity-notice:hover { background: rgba(40,55,80,.98); }
+.bts-activity-notice:hover {
+  background: rgba(34, 34, 38, 0.98);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+.bts-activity-notice .bts-activity-label {
+  display: inline-flex;
+  align-items: center;
+}
+.bts-activity-close {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+  flex-shrink: 0;
+}
+.bts-activity-close:hover {
+  background: rgba(255, 255, 255, 0.35);
+  transform: scale(1.1);
+}
+.bts-activity-close:focus-visible {
+  outline: 2px solid #ffbe0b;
+  outline-offset: 1px;
+}
 .bts-activity-panel {
   position: fixed; right: 16px; bottom: 52px; z-index: 2147483646;
   width: 320px; max-width: calc(100vw - 32px); max-height: 380px;
