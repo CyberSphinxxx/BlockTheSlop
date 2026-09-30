@@ -109,10 +109,17 @@ describe('onboarding flow UI (V6-03..07)', () => {
     // Choose High sensitivity.
     await userEvent.click(screen.getByRole('radio', { name: /high/i }));
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    // Phrases step
+    await screen.findByRole('heading', { name: /block specific phrases/i });
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
     // Review shows the summary and Back preserves state.
     await screen.findByRole('heading', { name: /review your choices/i });
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await screen.findByRole('heading', { name: /block specific phrases/i });
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByRole('radio', { name: /high/i })).toBeChecked();
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    await screen.findByRole('heading', { name: /block specific phrases/i });
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
     await screen.findByRole('heading', { name: /review your choices/i });
     await userEvent.click(screen.getByRole('button', { name: 'Apply' }));
@@ -143,6 +150,7 @@ describe('onboarding flow UI (V6-03..07)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
     await screen.findByRole('heading', { name: /review your choices/i });
     await userEvent.click(screen.getByRole('button', { name: 'Apply' }));
     // Visible failure; no Ready. (role=alert has name-from-author, so query by text)
@@ -154,6 +162,32 @@ describe('onboarding flow UI (V6-03..07)', () => {
     await screen.findByRole('heading', { name: /all set/i });
     expect(backend.completeOnboarding).toHaveBeenCalledTimes(1); // completion only after success
     expect(saveCalls.count).toBe(2); // failed attempt + successful retry, never a half-write
+  });
+
+  it('allows adding and removing blocked phrases during onboarding', async () => {
+    const backend = fakeBackend();
+    render(<OnboardingApp backend={backend} />);
+    await screen.findByRole('heading', { name: /welcome/i });
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' })); // discovery -> content
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' })); // content -> treatment
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' })); // treatment -> sensitivity
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' })); // sensitivity -> phrases
+    await screen.findByRole('heading', { name: /block specific phrases/i });
+
+    // Click suggested phrase chip
+    await userEvent.click(screen.getByRole('button', { name: /\+ “sora”/i }));
+    expect(screen.getByRole('button', { name: /Remove phrase sora/i })).toBeInTheDocument();
+
+    // Add custom phrase
+    const input = screen.getByLabelText(/phrase to block/i);
+    await userEvent.type(input, 'deepfake');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(screen.getByRole('button', { name: /Remove phrase deepfake/i })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    await screen.findByRole('heading', { name: /review your choices/i });
+    expect(screen.getByText(/Blocked phrases: “sora”, “deepfake”/i)).toBeInTheDocument();
   });
 
   it('never offers Blur or Dim (no placebo choices)', async () => {
@@ -179,5 +213,40 @@ describe('onboarding flow UI (V6-03..07)', () => {
     render(<OnboardingApp backend={backend} />);
     await screen.findByText(/setup already completed/i);
     expect(screen.queryByRole('button', { name: 'Start' })).toBeNull();
+  });
+
+  it('allows re-running setup when Run setup again is clicked', async () => {
+    const backend = fakeBackend({
+      getOnboardingState: vi.fn(async () => ({ completed: true, version: 1 })),
+    });
+    render(<OnboardingApp backend={backend} />);
+    await screen.findByText(/setup already completed/i);
+    const rerunBtn = screen.getByRole('button', { name: /run setup again/i });
+    await userEvent.click(rerunBtn);
+    await screen.findByRole('heading', { name: /welcome/i });
+    expect(screen.getByRole('button', { name: 'Start' })).toBeDefined();
+  });
+
+  it('immediately starts the wizard when opened with ?rerun=true', async () => {
+    const origLocation = window.location;
+    Object.defineProperty(window, 'location', {
+      value: { ...origLocation, search: '?rerun=true' },
+      configurable: true,
+      writable: true,
+    });
+    try {
+      const backend = fakeBackend({
+        getOnboardingState: vi.fn(async () => ({ completed: true, version: 1 })),
+      });
+      render(<OnboardingApp backend={backend} />);
+      await screen.findByRole('heading', { name: /welcome/i });
+      expect(screen.getByRole('button', { name: 'Start' })).toBeDefined();
+    } finally {
+      Object.defineProperty(window, 'location', {
+        value: origLocation,
+        configurable: true,
+        writable: true,
+      });
+    }
   });
 });
