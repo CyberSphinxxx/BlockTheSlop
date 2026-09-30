@@ -89,6 +89,7 @@ describe('OptionsApp', () => {
       'Categories',
       'Allowed content',
       'Blocked content',
+      'Blocked phrases',
       'Review history',
       'Import/export',
       'Privacy',
