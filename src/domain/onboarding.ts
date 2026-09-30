@@ -114,6 +114,8 @@ export interface OnboardingDraft {
   sensitivity: Sensitivity;
   /** Local-only; persisted (separately) only when the user answers. */
   discoverySource?: DiscoverySource | undefined;
+  /** Optional custom phrases to block chosen during onboarding. */
+  blockedPhrases?: string[] | undefined;
 }
 
 /**
@@ -133,7 +135,7 @@ export function defaultOnboardingDraft(): OnboardingDraft {
   ] as const) {
     categories[category] = true;
   }
-  return { categories, treatment: 'hide', sensitivity: 'balanced' };
+  return { categories, treatment: 'hide', sensitivity: 'balanced', blockedPhrases: [] };
 }
 
 /**
@@ -171,9 +173,18 @@ export function validateOnboardingDraft(raw: unknown): OnboardingDraft | null {
       ? (discoveryRaw as DiscoverySource)
       : undefined;
 
-  return discoverySource === undefined
-    ? { categories, treatment, sensitivity }
-    : { categories, treatment, sensitivity, discoverySource };
+  const phrasesRaw = record['blockedPhrases'];
+  const blockedPhrases = Array.isArray(phrasesRaw)
+    ? phrasesRaw.filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
+    : [];
+
+  return {
+    categories,
+    treatment,
+    sensitivity,
+    ...(discoverySource !== undefined ? { discoverySource } : {}),
+    ...(blockedPhrases.length > 0 ? { blockedPhrases } : {}),
+  };
 }
 
 /**
