@@ -341,6 +341,8 @@ test.describe('V7-02 Shorts shelf gap-free collapse', () => {
     await onboard.getByRole('button', { name: 'Continue' }).click();
     // Sensitivity (default balanced).
     await onboard.getByRole('button', { name: 'Continue' }).click();
+    // Blocked phrases (optional, default empty).
+    await onboard.getByRole('button', { name: 'Continue' }).click();
     // Review: single Apply transaction.
     await onboard.getByRole('button', { name: 'Apply', exact: true }).click();
     await expect(onboard.getByRole('heading', { name: /all set/i })).toBeVisible({
