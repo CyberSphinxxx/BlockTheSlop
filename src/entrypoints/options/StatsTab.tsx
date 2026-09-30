@@ -9,12 +9,12 @@ import type { Backend } from '@/ui/messaging';
  *
  * Honesty rules:
  * - Ranges: Today / 7 days / 30 days / All time (bounded to the 90-day
- *   retention window — "All time" says so explicitly).
+ *   retention window: "All time" says so explicitly).
  * - Distinct video counts and event counts are shown separately and labeled;
  *   no lifetime history counts are presented as stats.
  * - Empty state ("no outcomes recorded in this range"), collection-off state
  *   (explains outcomes are not being collected), and error state are all
- *   explicit — never a fake zero.
+ *   explicit: never a fake zero.
  * - By-category breakdown appears ONLY where the bucket stores real
  *   provenance (Shorts vs regular surfaces are recorded as separate
  *   distinct-ID entries in V6-11 follow-ups); this page shows aggregate
@@ -77,7 +77,7 @@ export function StatsTab({ backend }: { backend: Backend }) {
       .reverse();
   }, [state, range]);
 
-  // Audit H3: multi-day DISTINCT tiles use the UNION of identity sets —
+  // Audit H3: multi-day DISTINCT tiles use the UNION of identity sets:
   // summing per-day sizes counted the same video once per day it appeared,
   // contradicting the "distinct" label. Sightings stay event totals.
   const totals = useMemo(() => {
@@ -132,8 +132,8 @@ export function StatsTab({ backend }: { backend: Backend }) {
     );
   }
 
-  // Audit H2: read the REAL setting — the hardcoded false made the required
-  // collection-off state unreachable.
+  // Audit H2: read the REAL setting (hardcoded false made the required
+  // collection-off state unreachable).
   const collectionOff = !collectLocalStats;
 
   return (
@@ -160,15 +160,15 @@ export function StatsTab({ backend }: { backend: Backend }) {
 
         {collectionOff && (
           <p role="note" className="mb-2 text-sm opacity-70">
-            Local statistics are currently OFF (General tab) — new outcomes are not being recorded.
+            Local statistics are currently OFF (General tab). New outcomes are not being recorded.
             Existing recorded days below are still shown; no data was deleted.
           </p>
         )}
 
         {days.length === 0 ? (
           <p className="text-sm opacity-70" role="status">
-            No outcomes recorded in this range. When videos are hidden or warned on YouTube, the
-            daily totals appear here — stored only on this device, never uploaded.
+            No outcomes recorded in this range. When videos are hidden or warned on YouTube, daily
+            totals appear here. Stored only on this device, never uploaded.
           </p>
         ) : (
           <>
@@ -247,10 +247,8 @@ export function StatsTab({ backend }: { backend: Backend }) {
             </div>
 
             <p className="mt-2 text-xs opacity-70">
-              Range covers up to {STATS_MAX_DAYS} days (bounded storage). Counts are observed
-              outcomes — they never measure detector accuracy and never claim any video is
-              definitely AI. Corrections and restores are recorded; they do not erase the historical
-              observation.
+              Shows up to {STATS_MAX_DAYS} days of activity. Counts reflect filtering actions, not
+              detector accuracy. Restoring a video does not erase past records.
             </p>
           </>
         )}
@@ -266,7 +264,7 @@ export function StatsTab({ backend }: { backend: Backend }) {
           <Button onClick={() => setConfirmReset(true)}>Reset statistics…</Button>
         </div>
         <p className="mt-1 text-xs opacity-70">
-          Reset clears ONLY these daily statistics. Filtering rules, review history and corrections
+          Reset clears only these daily statistics. Filtering rules, review history, and corrections
           are never touched.
         </p>
       </Section>
@@ -284,7 +282,7 @@ export function StatsTab({ backend }: { backend: Backend }) {
                 await reload();
               } catch (e) {
                 setNotice(
-                  `Reset failed: ${e instanceof Error ? e.message : String(e)} — nothing was deleted.`,
+                  `Reset failed: ${e instanceof Error ? e.message : String(e)}. Nothing was deleted.`,
                 );
               }
               setConfirmReset(false);
