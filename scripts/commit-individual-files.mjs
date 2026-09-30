@@ -20,6 +20,14 @@ function getUncommittedFiles() {
 }
 
 function inferCommitMessage(filePath) {
+  if (filePath.includes(' -> ')) {
+    const parts = filePath.split(' -> ').map((s) => s.trim().replace(/^"|"$/g, ''));
+    const newPath = parts[1].replace(/\\/g, '/');
+    const base = path.basename(newPath);
+    const destDir = path.dirname(newPath);
+    return `chore(archive): move ${base} to ${destDir}`;
+  }
+
   const normalized = filePath.replace(/\\/g, '/');
   let baseName = path.basename(normalized, path.extname(normalized));
   baseName = baseName.replace(/\.(test|spec)$/, '');
@@ -189,7 +197,12 @@ function run() {
     }
 
     try {
-      execSync(`git add "${file}"`, { stdio: 'pipe' });
+      if (file.includes(' -> ')) {
+        const [oldP, newP] = file.split(' -> ').map((s) => s.trim().replace(/^"|"$/g, ''));
+        execSync(`git add -A -- "${oldP}" "${newP}"`, { stdio: 'pipe' });
+      } else {
+        execSync(`git add "${file}"`, { stdio: 'pipe' });
+      }
       execSync(`git commit -m "${message}" --no-verify`, { stdio: 'pipe' });
       const hash = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
       console.log(`[${count}/${total}] ✅ (${hash}) ${file} -> "${message}"`);
