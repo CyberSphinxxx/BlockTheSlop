@@ -77,6 +77,7 @@ type Tab =
   | 'categories'
   | 'allowed'
   | 'blocked'
+  | 'phrases'
   | 'review'
   | 'stats'
   | 'data'
@@ -102,6 +103,7 @@ const TAB_GROUPS: readonly TabGroup[] = [
     tabs: [
       { id: 'allowed', label: 'Allowed content' },
       { id: 'blocked', label: 'Blocked content' },
+      { id: 'phrases', label: 'Blocked phrases' },
     ],
   },
   {
@@ -165,7 +167,7 @@ export function OptionsApp({ backend }: { backend: Backend }) {
   const [review, setReview] = useState<ReviewRecord[]>([]);
   const [stats, setStats] = useState<LocalStats | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  /** N04 blocker-5: honest save state — never claim saved before it is. */
+  /** N04 blocker-5: honest save state: never claim saved before it is. */
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const refresh = useCallback(async () => {
@@ -209,8 +211,8 @@ export function OptionsApp({ backend }: { backend: Backend }) {
       // value, and the failure must be VISIBLE (N01/N05 blocker-5).
       setSettings(validated);
       setSaveState('saving');
-      // CFG-03: send only the fields THIS surface changed — a concurrent
-      // popup edit must survive because untouched fields are not in the patch.
+      // CFG-03: send only the fields THIS surface changed (a concurrent
+      // popup edit must survive because untouched fields are not in the patch).
       const patch: Partial<UserSettings> = {};
       if (previous !== null) {
         for (const key of Object.keys(validated) as (keyof UserSettings)[]) {
@@ -268,7 +270,7 @@ export function OptionsApp({ backend }: { backend: Backend }) {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-4xl gap-6 p-6">
+    <div className="btsl-options-container mx-auto flex min-h-screen max-w-4xl gap-6 p-6">
       <nav aria-label="Settings sections" className="btsl-nav w-48 shrink-0">
         <h1 className="btsl-wordmark mb-1 text-2xl font-bold">BlockTheSlop</h1>
         {/* N04 blocker-5: honest, visible save state with rollback on failure. */}
@@ -279,7 +281,7 @@ export function OptionsApp({ backend }: { backend: Backend }) {
         >
           {saveState === 'saving' && 'Saving…'}
           {saveState === 'saved' && 'All changes saved'}
-          {saveState === 'error' && 'Save failed — change reverted'}
+          {saveState === 'error' && 'Save failed. Changes were reverted.'}
         </p>
         <div>
           {TAB_GROUPS.map((group) => (
@@ -325,15 +327,15 @@ export function OptionsApp({ backend }: { backend: Backend }) {
                 <Button
                   onClick={() =>
                     void browser.tabs.create({
-                      url: browser.runtime.getURL('/onboarding.html'),
+                      url: browser.runtime.getURL('/onboarding.html?rerun=true'),
                     })
                   }
                 >
                   Reopen setup
                 </Button>
                 <p className="mt-1 text-xs opacity-70">
-                  Replays the first-install introduction. It never changes your settings on its own
-                  — only an explicit Apply inside setup does.
+                  Replays the initial setup guide. It will not change your settings unless you click
+                  Apply.
                 </p>
               </div>
             </Section>
@@ -356,7 +358,7 @@ export function OptionsApp({ backend }: { backend: Backend }) {
               <Toggle
                 id="opt-history"
                 label="Keep review history on this device"
-                description="When off, hidden videos are not persisted — recovery works only for the current page, and the Review tab cannot list past hides."
+                description="When off, hidden videos are not saved. You can only restore items on the current page, and the Review tab stays empty."
                 checked={settings.history.enabled}
                 onChange={(enabled) =>
                   void saveSettings({ ...settings, history: { ...settings.history, enabled } })
@@ -399,12 +401,12 @@ export function OptionsApp({ backend }: { backend: Backend }) {
                   {
                     value: 'collapse',
                     label: 'Collapse',
-                    hint: 'Removes the video card from layout completely — no blank space or placeholder',
+                    hint: 'Removes the video card completely with no blank space left behind',
                   },
                   {
                     value: 'placeholder',
                     label: 'Placeholder',
-                    hint: 'Keeps a styled replacement card in place with inline controls',
+                    hint: 'Replaces the hidden card with an inline placeholder card',
                   },
                 ]}
               />
@@ -465,9 +467,9 @@ export function OptionsApp({ backend }: { backend: Backend }) {
                   </span>
                 </label>
                 <p className="mt-1 text-xs opacity-70">
-                  Shows how many distinct videos are hidden on the current page, with quick restore.
-                  Off removes it entirely — the popup and Review tab still list hidden items.
-                  Corners are placed to avoid YouTube's own controls.
+                  Shows the number of hidden videos on the current page, with quick restore buttons.
+                  Turning this off hides the chip; the popup and Review tab will still show hidden
+                  items.
                 </p>
               </div>
             </Section>
@@ -551,21 +553,16 @@ export function OptionsApp({ backend }: { backend: Backend }) {
                   {
                     value: 'aggressive',
                     label: 'Aggressive',
-                    hint: 'Maximum AI recall; accepts false positives',
+                    hint: 'Filters most aggressively; higher chance of false positives',
                   },
                 ]}
               />
               <p className="mt-2 text-xs opacity-70">
-                Strict acts only on evidence the extension actually observed (labels, disclosures,
-                text signals): hide thresholds drop from high to moderate confidence. It never hides
-                a video for lacking metadata alone. Tradeoff: more false positives — every hide
-                keeps one-click recovery on the card and in Review history. Aggressive goes further
-                on observed evidence only: lower score floor and it admits low-confidence signals.
-                Expect false positives; every one stays one-click recoverable. Category overrides,
-                surface toggles, corrections and unknown-visibility rules apply in every mode.
-                Detection ceiling: content with no observable signal in its card metadata
-                (undisclosed AI with a clean title, for example) stays visible in every mode —
-                scores are heuristics, not proof, and missing metadata is never treated as evidence.
+                Strict uses lower confidence thresholds on visible labels and text to catch more AI
+                videos. This may occasionally hide normal videos by mistake, but every hidden video
+                can be restored with one click. Aggressive filters even more broadly. Videos with no
+                detectable AI signals in their title or description cannot be caught automatically.
+                Missing info is never assumed to be AI.
               </p>
             </Section>
             <Section title="Explanations">
@@ -641,7 +638,7 @@ export function OptionsApp({ backend }: { backend: Backend }) {
               <Toggle
                 id="opt-shorts-guard"
                 label="Pause and cover matched Shorts while playing"
-                description="Default off: Shorts shelf still filtered, active playback untouched."
+                description="When off, Shorts shelves are still filtered, but full-screen Shorts playback is not paused."
                 checked={settings.shortsGuard.enabled}
                 onChange={(on) => void saveSettings({ ...settings, shortsGuard: { enabled: on } })}
               />
@@ -698,6 +695,31 @@ export function OptionsApp({ backend }: { backend: Backend }) {
           </>
         )}
 
+        {tab === 'phrases' && (
+          <Section title="Blocked phrases">
+            <p className="mb-4 text-xs opacity-70">
+              Videos with titles matching these exact words or phrases will be hidden automatically.
+              Matching is case-insensitive.
+            </p>
+            <PhraseEditor
+              phrases={rules.blockedPhrases}
+              phraseRules={rules.blockedPhraseRules}
+              onAdd={(phrase, wholeWord) =>
+                void saveRules(
+                  applyRuleMutation(rules, {
+                    kind: 'block-phrase',
+                    phrase,
+                    ...(wholeWord ? { wholeWord: true } : {}),
+                  }),
+                )
+              }
+              onRemove={(phrase) =>
+                void saveRules(applyRuleMutation(rules, { kind: 'unblock-phrase', phrase }))
+              }
+            />
+          </Section>
+        )}
+
         {tab === 'review' && (
           <>
             <ReviewSection records={review} onChanged={() => void refresh()} backend={backend} />
@@ -727,7 +749,7 @@ export function OptionsApp({ backend }: { backend: Backend }) {
               <Toggle
                 id="opt-ytfeedback"
                 label='Also tell YouTube "Not interested" when hiding'
-                description="OFF by default. When enabled, hiding a card also changes your YouTube recommendation data. BlockTheSlop filtering works identically either way."
+                description="Off by default. When enabled, hiding a video also tells YouTube you are not interested. BlockTheSlop works either way."
                 checked={settings.youtubeFeedback.enabled}
                 disabled
                 disabledReason="Not available in this build: no YouTube actions are performed. The control is disabled until the feature ships."
@@ -740,7 +762,7 @@ export function OptionsApp({ backend }: { backend: Backend }) {
               <Toggle
                 id="opt-remote"
                 label="Enable remote reputation provider (experimental)"
-                description="OFF by default. If enabled, only video/channel IDs are sent over HTTPS to the endpoint you configure. Local filtering works without it."
+                description="Off by default. If enabled, only video and channel IDs are sent to your chosen endpoint. Local filtering works without it."
                 checked={settings.remoteProvider.enabled}
                 disabled
                 disabledReason="Not available in this build: no remote provider is used and nothing leaves your device. The control is disabled until the feature ships."
@@ -764,13 +786,159 @@ export function OptionsApp({ backend }: { backend: Backend }) {
         )}
 
         {tab === 'about' && (
-          <Section title="About">
-            <p className="text-sm">
-              BlockTheSlop — AI Slop Blocker for YouTube. Heuristics, not oracles: every automatic
-              decision is explainable and reversible. Detection is probabilistic; legitimate videos
-              can be mislabeled, so use the review queue to correct mistakes.
-            </p>
-          </Section>
+          <div className="space-y-6">
+            <Section title="About">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-5">
+                <img
+                  src={browser.runtime.getURL('/icon/128.png')}
+                  alt="BlockTheSlop logo"
+                  className="h-16 w-16 shrink-0 rounded-xl border border-[var(--color-rule)] bg-[var(--color-surface)] p-2 shadow-sm"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-xl font-bold tracking-tight">BlockTheSlop</h2>
+                    <span className="rounded bg-[var(--color-accent)]/20 px-2 py-0.5 text-xs font-semibold text-[var(--color-text)]">
+                      v1.0.0
+                    </span>
+                    <span className="rounded border border-[var(--color-rule)] px-1.5 py-0.5 text-[11px] opacity-70">
+                      Local-First
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm opacity-80 leading-relaxed">
+                    AI Slop Blocker for YouTube. Filter automated, repetitive, and low-quality AI
+                    content while keeping full control and instant one-click recovery.
+                  </p>
+                </div>
+              </div>
+            </Section>
+
+            <Section title="Core Principles">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-[var(--color-rule)] bg-[var(--color-surface)] p-3.5">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-500/15 text-sm">
+                      🔒
+                    </span>
+                    <h3 className="text-sm font-semibold">100% Local &amp; Private</h3>
+                  </div>
+                  <p className="mt-1.5 text-xs opacity-75 leading-relaxed">
+                    Runs entirely in your browser with zero remote servers, no telemetry, no
+                    tracking, and no accounts. Your viewing data never leaves your device.
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-[var(--color-rule)] bg-[var(--color-surface)] p-3.5">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-500/15 text-sm">
+                      💡
+                    </span>
+                    <h3 className="text-sm font-semibold">Transparent &amp; Explainable</h3>
+                  </div>
+                  <p className="mt-1.5 text-xs opacity-75 leading-relaxed">
+                    Every filtered video explains why it was flagged. Signals rely on observable
+                    metadata like title patterns and channel disclosure labels.
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-[var(--color-rule)] bg-[var(--color-surface)] p-3.5">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-500/15 text-sm">
+                      ↩️
+                    </span>
+                    <h3 className="text-sm font-semibold">Always Recoverable</h3>
+                  </div>
+                  <p className="mt-1.5 text-xs opacity-75 leading-relaxed">
+                    Heuristic filtering can occasionally misjudge a video. Restore any item
+                    instantly with one click on the card, in the popup, or from Review history.
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-[var(--color-rule)] bg-[var(--color-surface)] p-3.5">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-purple-500/15 text-sm">
+                      ⚙️
+                    </span>
+                    <h3 className="text-sm font-semibold">Fine-Grained Controls</h3>
+                  </div>
+                  <p className="mt-1.5 text-xs opacity-75 leading-relaxed">
+                    Customize your experience with filter modes, surface toggles, category rules,
+                    and custom blocked phrases with live preview.
+                  </p>
+                </div>
+              </div>
+            </Section>
+
+            <Section title="Quick Tips">
+              <div className="space-y-2.5 text-xs">
+                <div className="flex items-start gap-2.5 rounded-lg border border-[var(--color-rule)] bg-[var(--color-surface)] p-3">
+                  <span className="mt-0.5 text-base">🖱️</span>
+                  <div>
+                    <strong className="font-semibold text-sm">Right-Click Menu on YouTube</strong>
+                    <p className="mt-0.5 opacity-75">
+                      Right-click any video card or thumbnail to quickly block a channel or report a
+                      missed AI video for diagnostics.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5 rounded-lg border border-[var(--color-rule)] bg-[var(--color-surface)] p-3">
+                  <span className="mt-0.5 text-base">📌</span>
+                  <div>
+                    <strong className="font-semibold text-sm">On-Page Activity Chip</strong>
+                    <p className="mt-0.5 opacity-75">
+                      Keep track of hidden content on your current page with the discreet corner
+                      chip. Click it anytime to restore items on the spot.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5 rounded-lg border border-[var(--color-rule)] bg-[var(--color-surface)] p-3">
+                  <span className="mt-0.5 text-base">✍️</span>
+                  <div>
+                    <strong className="font-semibold text-sm">Custom Blocked Phrases</strong>
+                    <p className="mt-0.5 opacity-75">
+                      Add specific buzzwords or channels in the Blocked Phrases tab to hide content
+                      matching your personal preferences.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </Section>
+
+            <Section title="Technical Details">
+              <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+                <div className="rounded border border-[var(--color-rule)] p-2.5">
+                  <div className="font-semibold uppercase tracking-wider opacity-60">Version</div>
+                  <div className="mt-1 font-mono font-medium">1.0.0</div>
+                </div>
+                <div className="rounded border border-[var(--color-rule)] p-2.5">
+                  <div className="font-semibold uppercase tracking-wider opacity-60">Engine</div>
+                  <div className="mt-1 font-medium">Local Heuristic</div>
+                </div>
+                <div className="rounded border border-[var(--color-rule)] p-2.5">
+                  <div className="font-semibold uppercase tracking-wider opacity-60">Storage</div>
+                  <div className="mt-1 font-medium">IndexedDB + Local</div>
+                </div>
+                <div className="rounded border border-[var(--color-rule)] p-2.5">
+                  <div className="font-semibold uppercase tracking-wider opacity-60">Telemetry</div>
+                  <div className="mt-1 font-medium text-emerald-500">None (0 bytes)</div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button
+                  onClick={() =>
+                    void browser.tabs.create({
+                      url: browser.runtime.getURL('/onboarding.html?rerun=true'),
+                    })
+                  }
+                >
+                  Replay Setup Guide
+                </Button>
+                <Button onClick={() => setTab('review')}>Open Review History</Button>
+              </div>
+            </Section>
+          </div>
         )}
       </main>
     </div>
@@ -987,8 +1155,8 @@ function AutoChannelSection({ onChanged }: { onChanged?: () => void }) {
   return (
     <Section title="Automatic Channel Blocks (Opt-in)">
       <p className="mb-3 text-xs opacity-70">
-        Separately labeled, expiring blocks triggered by multiple distinct videos with strong
-        video-production AI evidence across visits. Explicit user blocks never expire.
+        Channels blocked automatically after multiple confirmed AI videos were detected. These
+        blocks expire after 30 days. Channels you block manually never expire.
       </p>
 
       {activeEntries.length === 0 && suggestedEntries.length === 0 && (
@@ -1124,7 +1292,7 @@ function ReviewSection({
 
   // Selection is scoped to the CURRENT query window: it resets whenever the
   // window changes so no unseen row can be bulk-targeted (HIS-14). Derived at
-  // render time — no effect, no cascading render.
+  // render time: no effect, no cascading render.
   const selectionKey = `${page}|${pageSize}|${search}|${status}|${surface}|${sort}|${fromText}|${toText}`;
   const [ownedSelectionKey, setOwnedSelectionKey] = useState(selectionKey);
   if (ownedSelectionKey !== selectionKey) {
@@ -1142,7 +1310,7 @@ function ReviewSection({
   );
   const result = resultState !== null && resultState.key === queryKey ? resultState.data : null;
   const [error, setError] = useState<string | null>(null);
-  // Stale-response drop guard — used inside async callbacks only (HIS-05).
+  // Stale-response drop guard: used inside async callbacks only (HIS-05).
   const querySeq = useRef(0);
 
   // ---- detail expansion (R24) ----
@@ -1232,7 +1400,7 @@ function ReviewSection({
       await applyRule({ kind: 'allow-video', videoId: summary.videoId });
     } else if (action === 'allow-channel') {
       // Identity safety (HIS-13): channelId when present, else the parsed
-      // handle — NEVER the display name.
+      // handle: NEVER the display name.
       if (summary.channelId !== undefined) {
         await applyRule({ kind: 'allow-channel', channelId: summary.channelId });
       } else if (summary.handle !== undefined) {
@@ -1724,8 +1892,8 @@ function DataSection({
     const text = await file.text();
     try {
       const parsed = parseImport(text);
-      // The PREPARED outcome (04 §10) is held in state — never reparsed as an
-      // export file, never re-derived at commit time.
+      // The PREPARED outcome (04 §10) is held in state (never reparsed as an
+      // export file, never re-derived at commit time).
       setPrepared(parsed);
       setNotice(null);
     } catch (error) {
@@ -1825,7 +1993,7 @@ function DataSection({
       </Section>
       <Section title="Data controls">
         <p className="mb-2 text-xs opacity-70">
-          Each data class clears separately (DATA-08). Rules and settings are never touched here.
+          Each data type clears separately. Your rules and settings will not be affected.
         </p>
         <DataClearButton
           label="Clear classification cache…"
@@ -1842,7 +2010,7 @@ function DataSection({
         <DataClearButton
           label="Clear all Not-AI / Not-slop corrections…"
           confirm="
-            Delete ALL corrections? Hidden videos may reappear — you would need to correct them
+            Delete ALL corrections? Hidden videos may reappear, and you will need to correct them
             again. This cannot be undone."
           action={() => backend.clearCorrections()}
           done="Corrections cleared."
