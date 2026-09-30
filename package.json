@@ -1,6 +1,6 @@
 {
   "name": "block-the-slop",
-  "description": "BlockTheSlop — AI Slop Blocker for YouTube. Privacy-first, local-first filtering of AI-generated, automated, repetitive, and low-quality YouTube content.",
+  "description": "BlockTheSlop: AI Slop Blocker for YouTube. Privacy-first, local-first filtering of AI-generated, automated, repetitive, and low-quality YouTube content.",
   "version": "1.0.0",
   "private": true,
   "type": "module",
